@@ -38,6 +38,10 @@ public static class DatabaseInitializer
             DateTime.UtcNow);
 
         await SeedCatalogAsync(db, logger);
+        await EnsureDefaultSessionsAsync(db, logger);
+        await db.Database.ExecuteSqlRawAsync(
+            "INSERT OR IGNORE INTO schema_migrations (Version, AppliedAt) VALUES (2, {0})",
+            DateTime.UtcNow);
         await transaction.CommitAsync();
     }
 
@@ -133,6 +137,68 @@ public static class DatabaseInitializer
         return db.Database.ExecuteSqlRawAsync(
             "INSERT OR IGNORE INTO data_migration_issues (Entity, LegacyId, Description, CreatedAt) VALUES ({0}, {1}, {2}, {3})",
             entity, legacyId, description, DateTime.UtcNow);
+    }
+
+    private static async Task EnsureDefaultSessionsAsync(AppDbContext db, ILogger logger)
+    {
+        var today = DateTime.Today;
+        var initialTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Jean-Michel Basquiat", "Takashi Murakami", "Banksy"
+        };
+        var exposures = await db.Exposicoes
+            .Where(item => initialTitles.Contains(item.Titulo))
+            .ToListAsync();
+
+        foreach (var exposure in exposures)
+        {
+            if (await db.VisitSessions.AnyAsync(item => item.ExposureId == exposure.Id))
+            {
+                continue;
+            }
+
+            var hasLegacyHistory = false;
+            if (await TableExistsAsync(db, "user_tickets"))
+            {
+                hasLegacyHistory = await db.UserTickets.AnyAsync(item => item.EventName == exposure.Titulo);
+            }
+            if (!hasLegacyHistory && await TableExistsAsync(db, "user_appointments"))
+            {
+                hasLegacyHistory = await db.UserAppointments.AnyAsync(item => item.EventName == exposure.Titulo);
+            }
+
+            if (exposure.Fim.Date < today && !hasLegacyHistory)
+            {
+                var year = today.Year;
+                var start = new DateTime(year, exposure.Inicio.Month, exposure.Inicio.Day);
+                var end = new DateTime(year, exposure.Fim.Month, exposure.Fim.Day);
+                while (end.Date <= today)
+                {
+                    start = start.AddYears(1);
+                    end = end.AddYears(1);
+                }
+                exposure.Inicio = start;
+                exposure.Fim = end;
+            }
+
+            if (!exposure.Ativa || exposure.Fim.Date < today || hasLegacyHistory)
+            {
+                continue;
+            }
+
+            var firstDate = exposure.Inicio.Date > today ? exposure.Inicio.Date : today.AddDays(1);
+            for (var offset = 0; offset <= 21; offset += 7)
+            {
+                var date = firstDate.AddDays(offset);
+                if (date > exposure.Fim.Date) break;
+                db.VisitSessions.AddRange(
+                    new VisitSession { ExposureId = exposure.Id, VisitDate = date, StartTime = new TimeSpan(10, 0, 0), Capacity = 40, IsActive = true },
+                    new VisitSession { ExposureId = exposure.Id, VisitDate = date, StartTime = new TimeSpan(14, 0, 0), Capacity = 40, IsActive = true });
+            }
+        }
+
+        await db.SaveChangesAsync();
+        logger.LogInformation("Sessões iniciais futuras verificadas sem alterar exposições com histórico.");
     }
 
     private static readonly string[] SchemaCommands =

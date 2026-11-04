@@ -15,14 +15,17 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
         using var client = _factory.CreateClient();
         var response = await client.GetAsync("/");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Caneca Aurora", await response.Content.ReadAsStringAsync());
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Caneca Aurora", html);
+        Assert.Contains("vagas", html);
+        Assert.DoesNotContain("ticketSession\" required disabled", html);
     }
 
     [Fact]
     public async Task VisitorCannotOpenAdministrativeEndpoints()
     {
         using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
-        await RegisterAndLogin(client, $"visitor-{Guid.NewGuid():N}@example.test", "52998224725");
+        await RegisterAndLogin(client, $"visitor-{Guid.NewGuid():N}@example.test", "12122222222");
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/admin")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/user-actions/analytics")).StatusCode);
     }

@@ -19,7 +19,7 @@ namespace AuroraGaleria.Controllers
                 Exposicoes = await db.Exposicoes.AsNoTracking().Where(item => item.Ativa).OrderBy(item => item.Inicio).ToListAsync(),
                 Produtos = await db.Produtos.AsNoTracking().Where(item => item.Ativo).OrderBy(item => item.Nome).ToListAsync(),
                 Sessoes = sessions.Select(item => new SessionOption(item.Id, item.ExposureId, item.Exposure!.Titulo,
-                    item.VisitDate.ToString("yyyy-MM-dd"), item.StartTime.ToString(@"hh\:mm"), item.Capacity - item.ReservedQuantity)).ToList()
+                    item.VisitDate.ToString("dd/MM/yyyy"), item.StartTime.ToString(@"hh\:mm"), item.Capacity - item.ReservedQuantity)).ToList()
             };
             return View(model);
         }

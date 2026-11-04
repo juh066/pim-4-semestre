@@ -34,7 +34,7 @@ public class MigrationTests
             await using var scope = services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             Assert.Equal("Produto legado", (await db.Produtos.SingleAsync(item => item.Id == 9)).Nome);
-            Assert.Equal(1, await db.Database.SqlQueryRaw<int>("SELECT Version AS Value FROM schema_migrations").SingleAsync());
+            Assert.Equal(2, await db.Database.SqlQueryRaw<int>("SELECT MAX(Version) AS Value FROM schema_migrations").SingleAsync());
             Assert.True(await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='visit_reservations'").SingleAsync() == 1);
         }
         finally { if (File.Exists(path)) File.Delete(path); }

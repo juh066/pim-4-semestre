@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Antiforgery;
-using AuroraGaleria.Services;
 
 namespace AuroraGaleria.Controllers
 {
@@ -34,11 +33,6 @@ namespace AuroraGaleria.Controllers
                 if (!ModelState.IsValid)
                 {
                     return BadRequest(new { message = "Preencha nome, CPF, email e senha corretamente." });
-                }
-
-                if (!CpfValidator.IsValid(request.Cpf))
-                {
-                    return BadRequest(new { message = "Informe um CPF válido. Use somente dados fictícios neste projeto acadêmico." });
                 }
 
                 if (await _db.Users.AnyAsync(user => user.Email == request.Email))

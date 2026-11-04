@@ -51,7 +51,7 @@ Use dados fictícios. Depois do login, o administrador acessa `/admin` para cada
 - Visitantes veem e alteram apenas registros associados ao identificador presente no cookie autenticado. Administração e análises exigem o papel `Administrator` no servidor.
 - Operações que alteram estado usam token antiforgery no cabeçalho ou no formulário; cookies são `HttpOnly` e `SameSite=Strict`.
 
-O CPF foi mantido porque já faz parte do cadastro e da restrição de unicidade do projeto. Agora os dígitos verificadores são validados e a interface orienta a usar dados fictícios. Para o PIM IV, a equipe deve decidir se existe justificativa acadêmica/legal para coletá-lo; se não houver, uma migração posterior deve torná-lo opcional ou removê-lo.
+O CPF foi mantido porque já faz parte do cadastro e da restrição de unicidade do projeto, mas é tratado como identificador acadêmico fictício: qualquer sequência de exatamente 11 dígitos é aceita, desde que ainda não esteja cadastrada. Para o PIM IV, a equipe deve decidir se existe justificativa acadêmica/legal para coletá-lo; se não houver, uma migração posterior deve torná-lo opcional ou removê-lo.
 
 ## Testes
 
