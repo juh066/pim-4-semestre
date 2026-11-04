@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AuroraGaleria.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = AuroraGaleria.Models.UserRoles.Administrator)]
     [Route("analytics")]
     public class AnalyticsController : Controller
     {

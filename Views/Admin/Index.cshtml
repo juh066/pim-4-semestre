@@ -1,0 +1,105 @@
+@model AuroraGaleria.Models.AdminDashboardViewModel
+@{
+    ViewData["Title"] = "Administração";
+}
+
+<section class="section admin-page">
+    <h1>Administração da Galeria</h1>
+    <p>Cadastros e sessões. Registros desativados continuam preservados no histórico.</p>
+    @if (TempData["AdminError"] is string error && !string.IsNullOrWhiteSpace(error))
+    {
+        <div class="alert alert-danger" role="alert">@error</div>
+    }
+
+    <h2>Exposições</h2>
+    <form method="post" action="/admin/exposures" class="admin-form">
+        @Html.AntiForgeryToken()
+        <label>Título <input name="Title" required maxlength="140" /></label>
+        <label>Descrição <textarea name="Description" maxlength="1000"></textarea></label>
+        <label>URL da imagem <input name="ImageUrl" required maxlength="300" /></label>
+        <label>Período exibido <input name="Period" required maxlength="80" /></label>
+        <label>Início <input name="StartDate" type="date" required /></label>
+        <label>Fim <input name="EndDate" type="date" required /></label>
+        <button type="submit">Cadastrar exposição</button>
+    </form>
+    <div class="admin-list">
+        @foreach (var item in Model.Exposures)
+        {
+            <article class="admin-card">
+                <form method="post" action="/admin/exposures/@item.Id/edit" class="admin-form compact">
+                    @Html.AntiForgeryToken()
+                    <label>Título <input name="Title" value="@item.Titulo" required /></label>
+                    <label>Descrição <textarea name="Description">@item.Descricao</textarea></label>
+                    <label>URL da imagem <input name="ImageUrl" value="@item.ImagemUrl" required /></label>
+                    <label>Período exibido <input name="Period" value="@item.Periodo" required /></label>
+                    <label>Início <input name="StartDate" type="date" value="@item.Inicio.ToString("yyyy-MM-dd")" required /></label>
+                    <label>Fim <input name="EndDate" type="date" value="@item.Fim.ToString("yyyy-MM-dd")" required /></label>
+                    <button type="submit">Salvar</button>
+                </form>
+                <form method="post" action="/admin/exposures/@item.Id/toggle">
+                    @Html.AntiForgeryToken()
+                    <button type="submit">@(item.Ativa ? "Desativar" : "Reativar")</button>
+                </form>
+            </article>
+        }
+    </div>
+
+    <h2>Produtos</h2>
+    <form method="post" action="/admin/products" class="admin-form">
+        @Html.AntiForgeryToken()
+        <label>Nome <input name="Name" required maxlength="120" /></label>
+        <label>Preço <input name="Price" type="number" min="0.01" step="0.01" required /></label>
+        <label>URL da imagem <input name="ImageUrl" required maxlength="300" /></label>
+        <button type="submit">Cadastrar produto</button>
+    </form>
+    <div class="admin-list">
+        @foreach (var item in Model.Products)
+        {
+            <article class="admin-card">
+                <form method="post" action="/admin/products/@item.Id/edit" class="admin-form compact">
+                    @Html.AntiForgeryToken()
+                    <label>Nome <input name="Name" value="@item.Nome" required /></label>
+                    <label>Preço <input name="Price" type="number" min="0.01" step="0.01" value="@item.Preco.ToString(System.Globalization.CultureInfo.InvariantCulture)" required /></label>
+                    <label>URL da imagem <input name="ImageUrl" value="@item.ImagemUrl" required /></label>
+                    <button type="submit">Salvar</button>
+                </form>
+                <form method="post" action="/admin/products/@item.Id/toggle">
+                    @Html.AntiForgeryToken()
+                    <button type="submit">@(item.Ativo ? "Desativar" : "Reativar")</button>
+                </form>
+            </article>
+        }
+    </div>
+
+    <h2>Sessões de visita</h2>
+    <form method="post" action="/admin/sessions" class="admin-form">
+        @Html.AntiForgeryToken()
+        <label>Exposição
+            <select name="ExposureId" required>
+                @foreach (var exposure in Model.Exposures.Where(item => item.Ativa))
+                {
+                    <option value="@exposure.Id">@exposure.Titulo</option>
+                }
+            </select>
+        </label>
+        <label>Data <input name="VisitDate" type="date" min="@DateTime.Today.ToString("yyyy-MM-dd")" required /></label>
+        <label>Horário <input name="StartTime" type="time" required /></label>
+        <label>Capacidade <input name="Capacity" type="number" min="1" required /></label>
+        <button type="submit">Cadastrar sessão</button>
+    </form>
+    <div class="admin-list">
+        @foreach (var session in Model.Sessions)
+        {
+            <article class="admin-card">
+                <strong>@session.Exposure?.Titulo</strong>
+                <span>@session.VisitDate.ToString("dd/MM/yyyy") às @session.StartTime.ToString(@"hh\:mm")</span>
+                <span>@session.ReservedQuantity de @session.Capacity vagas ocupadas</span>
+                <span>@(session.IsActive ? "Ativa" : "Inativa")</span>
+                <form method="post" action="/admin/sessions/@session.Id/toggle">
+                    @Html.AntiForgeryToken()
+                    <button type="submit">@(session.IsActive ? "Desativar sessão" : "Reativar sessão")</button>
+                </form>
+            </article>
+        }
+    </div>
+</section>

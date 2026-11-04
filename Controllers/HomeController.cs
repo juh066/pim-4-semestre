@@ -1,23 +1,27 @@
 using Microsoft.AspNetCore.Mvc;
 using AuroraGaleria.Models;
+using AuroraGaleria.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuroraGaleria.Controllers
 {
-    public class HomeController : Controller
+    public class HomeController(AppDbContext db) : Controller
     {
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
-            var exposicoes = ExposicoesCatalogo.Todas
-                .Select(exposicao => new Exposicao
-                {
-                    Titulo = exposicao.Titulo,
-                    Descricao = exposicao.Descricao,
-                    ImagemUrl = exposicao.ImagemUrl,
-                    Data = exposicao.Periodo
-                })
-                .ToList();
-
-            return View(exposicoes);
+            var today = DateTime.Today;
+            var sessions = await db.VisitSessions.AsNoTracking().Include(item => item.Exposure)
+                .Where(item => item.IsActive && item.Exposure!.Ativa && item.VisitDate >= today && item.VisitDate >= item.Exposure.Inicio && item.VisitDate <= item.Exposure.Fim)
+                .OrderBy(item => item.VisitDate).ToListAsync();
+            sessions = sessions.OrderBy(item => item.VisitDate).ThenBy(item => item.StartTime).ToList();
+            var model = new HomeViewModel
+            {
+                Exposicoes = await db.Exposicoes.AsNoTracking().Where(item => item.Ativa).OrderBy(item => item.Inicio).ToListAsync(),
+                Produtos = await db.Produtos.AsNoTracking().Where(item => item.Ativo).OrderBy(item => item.Nome).ToListAsync(),
+                Sessoes = sessions.Select(item => new SessionOption(item.Id, item.ExposureId, item.Exposure!.Titulo,
+                    item.VisitDate.ToString("yyyy-MM-dd"), item.StartTime.ToString(@"hh\:mm"), item.Capacity - item.ReservedQuantity)).ToList()
+            };
+            return View(model);
         }
     }
 }

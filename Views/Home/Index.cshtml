@@ -1,5 +1,4 @@
-﻿@model List<AuroraGaleria.Models.Exposicao>
-
+@model AuroraGaleria.Models.HomeViewModel
 @{
     ViewData["Title"] = "Galeria Aurora";
 }
@@ -14,87 +13,74 @@
 
 <section id="exposicoes" class="section">
     <h2>Exposições — Arte Contemporânea</h2>
-  <div class="cards">
-        @foreach (var expo in Model)
+    <div class="cards">
+        @foreach (var expo in Model.Exposicoes)
         {
-            <div class="card">
-                <img src="@expo.ImagemUrl" alt="@expo.Titulo">
+            <article class="card">
+                <img src="@expo.ImagemUrl" alt="Obra representativa da exposição @expo.Titulo">
                 <div class="card-content">
                     <h3>@expo.Titulo</h3>
                     <p>@expo.Descricao</p>
-                    <span>@expo.Data</span>
+                    <span>@expo.Periodo</span>
                 </div>
-            </div>
+            </article>
         }
     </div>
 </section>
 
 <section id="comprar-ingressos" class="tickets">
     <div class="ticket-box">
-        <h2>Comprar Ingressos</h2>
-
+        <h2>Reservar ingressos</h2>
+        <p class="academic-notice">Projeto acadêmico: esta reserva é uma simulação e não realiza cobrança.</p>
         <form id="ticketForm">
-            <select id="ticketExhibition" required>
-                <option value="">Selecione uma exposição</option>
-                <option value="Jean-Michel Basquiat">Jean-Michel Basquiat (15 Maio - 30 Junho)</option>
-                <option value="Takashi Murakami">Takashi Murakami (01 Julho - 15 Agosto)</option>
-                <option value="Banksy">Banksy (20 Agosto - 30 Setembro)</option>
+            <label for="ticketSession">Sessão</label>
+            <select id="ticketSession" required @(Model.Sessoes.Count == 0 ? "disabled" : null)>
+                <option value="">Selecione exposição, data e horário</option>
+                @foreach (var session in Model.Sessoes.Where(item => item.Available > 0))
+                {
+                    <option value="@session.Id">@session.ExposureName — @session.Date às @session.Time (@session.Available vagas)</option>
+                }
             </select>
-            <input id="ticketVisitDate" type="text" placeholder="Selecione uma exposição primeiro" disabled required>
-            <input type="number" placeholder="Quantidade" min="1" required>
-            <button type="submit">Comprar</button>
+            <label for="ticketQuantity">Quantidade</label>
+            <input id="ticketQuantity" type="number" min="1" max="20" value="1" required>
+            <button type="submit" @(Model.Sessoes.Count == 0 ? "disabled" : null)>Reservar</button>
+            @if (Model.Sessoes.Count == 0) { <p>Não há sessões futuras disponíveis no momento.</p> }
         </form>
     </div>
 </section>
 
 <section id="agendar-visita" class="agenda">
     <div class="agenda-box">
-        <h2>Agendar Visita</h2>
-
+        <h2>Agendar visita</h2>
         <form id="agendaForm">
-            <select id="agendaExhibition" required>
-                <option value="">Selecione uma exposição</option>
-                <option value="Jean-Michel Basquiat">Jean-Michel Basquiat (15 Maio - 30 Junho)</option>
-                <option value="Takashi Murakami">Takashi Murakami (01 Julho - 15 Agosto)</option>
-                <option value="Banksy">Banksy (20 Agosto - 30 Setembro)</option>
+            <label for="agendaSession">Sessão</label>
+            <select id="agendaSession" required @(Model.Sessoes.Count == 0 ? "disabled" : null)>
+                <option value="">Selecione exposição, data e horário</option>
+                @foreach (var session in Model.Sessoes.Where(item => item.Available > 0))
+                {
+                    <option value="@session.Id">@session.ExposureName — @session.Date às @session.Time (@session.Available vagas)</option>
+                }
             </select>
-            <input id="agendaVisitDate" type="text" placeholder="Selecione uma exposição primeiro" disabled required>
-            <button type="submit">Agendar</button>
+            <button type="submit" @(Model.Sessoes.Count == 0 ? "disabled" : null)>Agendar</button>
         </form>
     </div>
 </section>
+
 <section id="lojinha" class="shop">
     <h2>Lojinha</h2>
-
+    <p class="academic-notice">Compra simulada para fins acadêmicos. Não informe dados reais de pagamento.</p>
     <div class="shop-grid">
-        <div class="product" data-product-id="1" data-product-name="Caneca Aurora" data-product-price="49.90">
-            <div class="product-image-frame">
-                <img src="/images/caneca_aurora.jpeg" alt="Caneca Aurora">
-            </div>
-            <h3>Caneca Aurora</h3>
-            <p>R$ 49,90</p>
-            <button type="button">Comprar</button>
-        </div>
-
-        <div class="product" data-product-id="2" data-product-name="Tote Bag" data-product-price="69.90">
-            <div class="product-image-frame">
-                <img src="/images/basquiat_tote_bag.webp" alt="Tote Bag">
-            </div>
-            <h3>Tote Bag</h3>
-            <p>R$ 69,90</p>
-            <button type="button">Comprar</button>
-        </div>
-
-        <div class="product" data-product-id="3" data-product-name="Caderno Artístico" data-product-price="39.90">
-            <div class="product-image-frame">
-                <img src="/images/sn_x1000-pad_750x1000_f8f8f8.webp" alt="Caderno Artístico">
-            </div>
-            <h3>Caderno Artístico</h3>
-            <p>R$ 39,90</p>
-            <button type="button">Comprar</button>
-        </div>
+        @foreach (var product in Model.Produtos)
+        {
+            <article class="product" data-product-id="@product.Id">
+                <div class="product-image-frame">
+                    <img src="@product.ImagemUrl" alt="@product.Nome">
+                </div>
+                <h3>@product.Nome</h3>
+                <p>@product.Preco.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"))</p>
+                <button type="button">Adicionar ao carrinho</button>
+            </article>
+        }
     </div>
 </section>
-<footer>
-    <p>Galeria Aurora © 2026 — Arte contemporânea para todos.</p>
-</footer>
+<footer><p>Galeria Aurora © 2026 — Arte contemporânea para todos.</p></footer>

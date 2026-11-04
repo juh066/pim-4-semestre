@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -24,7 +24,7 @@
                             <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
                         </li>
                     </ul>
-                    <div class="navbar-actions" aria-label="Acessos rapidos">
+                    <div class="navbar-actions" aria-label="Acessos rápidos">
                         <a class="navbar-icon-button" href="#comprar-ingressos" aria-label="Comprar Ingressos" title="Comprar Ingressos">
                             <svg aria-hidden="true" viewBox="0 0 24 24">
                                 <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
@@ -61,6 +61,7 @@
                                 <rect x="17" y="5" width="3" height="12" rx="1" />
                             </svg>
                         </a>
+                        <a id="adminButton" class="navbar-icon-button" asp-controller="Admin" asp-action="Index" aria-label="Administrar cadastros" title="Administração" hidden>Admin</a>
                         <button id="cartButton" class="navbar-icon-button cart-navbar-button" type="button" aria-label="Abrir carrinho" title="Carrinho">
                             <svg aria-hidden="true" viewBox="0 0 24 24">
                                 <circle cx="8" cy="21" r="1" />
@@ -102,19 +103,26 @@
                         <div class="auth-panel">
                             <h3>Login</h3>
                             <form id="loginForm">
-                                <input type="email" placeholder="Email" required>
-                                <input type="password" placeholder="Senha" required>
+                                <label for="loginEmail">E-mail</label>
+                                <input id="loginEmail" type="email" autocomplete="email" required>
+                                <label for="loginPassword">Senha</label>
+                                <input id="loginPassword" type="password" autocomplete="current-password" required>
                                 <button type="submit">Entrar</button>
                             </form>
                         </div>
 
                         <div class="auth-panel">
                             <h3>Cadastro</h3>
+                            <p>Use apenas dados fictícios neste projeto acadêmico.</p>
                             <form id="registerForm">
-                                <input type="text" placeholder="Nome" required>
-                                <input type="text" placeholder="CPF (11 dígitos)" id="cpfInput" maxlength="11" required>
-                                <input type="email" placeholder="Email" required>
-                                <input type="password" placeholder="Senha" required>
+                                <label for="registerName">Nome</label>
+                                <input id="registerName" type="text" autocomplete="name" required>
+                                <label for="cpfInput">CPF fictício (11 dígitos)</label>
+                                <input type="text" id="cpfInput" inputmode="numeric" maxlength="11" required>
+                                <label for="registerEmail">E-mail</label>
+                                <input id="registerEmail" type="email" autocomplete="email" required>
+                                <label for="registerPassword">Senha</label>
+                                <input id="registerPassword" type="password" autocomplete="new-password" minlength="6" required>
                                 <button type="submit">Cadastrar</button>
                             </form>
                         </div>
@@ -150,43 +158,15 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content auth-modal-content payment-modal-content">
                 <div class="modal-header">
-                    <h2 class="modal-title fs-5" id="paymentModalLabel">Pagamento</h2>
+                    <h2 class="modal-title fs-5" id="paymentModalLabel">Confirmar simulação</h2>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="paymentForm" class="payment-form" novalidate>
-                        <div class="payment-field">
-                            <div class="card-number-field">
-                                <input id="paymentCardNumber" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="Número do cartão" maxlength="19" required>
-                                <span id="paymentCardIcon" class="card-type-icon" aria-hidden="true">CARD</span>
-                            </div>
-                            <p class="payment-error" id="paymentCardNumberError"></p>
-                        </div>
-
-                        <div class="payment-field">
-                            <input id="paymentCardName" type="text" autocomplete="cc-name" placeholder="Nome impresso no cartão" maxlength="60" required>
-                            <p class="payment-error" id="paymentCardNameError"></p>
-                        </div>
-
-                        <div class="payment-row">
-                            <div class="payment-field">
-                                <input id="paymentExpiry" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="Validade (MM/AA)" maxlength="5" required>
-                                <p class="payment-error" id="paymentExpiryError"></p>
-                            </div>
-
-                            <div class="payment-field">
-                                <input id="paymentCvv" type="text" inputmode="numeric" autocomplete="cc-csc" placeholder="CVV" maxlength="3" required>
-                                <p class="payment-error" id="paymentCvvError"></p>
-                            </div>
-                        </div>
-
-                        <div class="payment-field">
-                            <input id="paymentCep" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="CEP" maxlength="9" required>
-                            <p class="payment-error" id="paymentCepError"></p>
-                        </div>
-
+                    <form id="paymentForm" class="payment-form">
+                        <p><strong>Nenhum pagamento será processado.</strong></p>
+                        <p>Ao confirmar, o sistema registrará apenas uma compra simulada para demonstrar o fluxo acadêmico.</p>
                         <div class="payment-actions">
-                            <button id="paymentConfirmButton" type="submit">Confirmar pagamento</button>
+                            <button id="paymentConfirmButton" type="submit">Confirmar simulação</button>
                             <button id="paymentCancelButton" class="payment-cancel-button" type="button" data-bs-dismiss="modal">Cancelar</button>
                         </div>
                     </form>
@@ -226,9 +206,12 @@
             <div class="vw-plugin-top-wrapper"></div>
         </div>
     </div>
-    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+    <script src="https://vlibras.gov.br/app/vlibras-plugin.js" onerror="console.warn('VLibras indisponível; as demais funções continuam ativas.')"></script>
     <script>
-        new window.VLibras.Widget('https://vlibras.gov.br/app');
+        if (window.VLibras?.Widget) {
+            try { new window.VLibras.Widget('https://vlibras.gov.br/app'); }
+            catch (error) { console.warn('Não foi possível iniciar o VLibras.', error); }
+        }
     </script>
 
 </body>

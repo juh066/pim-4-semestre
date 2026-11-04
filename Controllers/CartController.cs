@@ -1,152 +1,48 @@
 using System.Security.Claims;
-using AuroraGaleria.Data;
 using AuroraGaleria.Models;
+using AuroraGaleria.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
-namespace AuroraGaleria.Controllers
+namespace AuroraGaleria.Controllers;
+
+[ApiController, Authorize, Route("cart")]
+public class CartController(ICartService cartService) : ControllerBase
 {
-    [ApiController]
-    [Authorize]
-    [Route("cart")]
-    public class CartController : ControllerBase
+    [HttpGet]
+    public async Task<IActionResult> Get() => Ok(await cartService.GetAsync(UserId));
+
+    [HttpPost("items")]
+    public async Task<IActionResult> Add(AddCartItemRequest request)
     {
-        private readonly AppDbContext _db;
-
-        public CartController(AppDbContext db)
-        {
-            _db = db;
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> VerCarrinho()
-        {
-            var userId = UsuarioId();
-            var items = await _db.CartItems
-                .Where(item => item.UserId == userId)
-                .OrderBy(item => item.CreatedAt)
-                .ToListAsync();
-
-            return Ok(MontarCarrinho(items));
-        }
-
-        [HttpPost("items")]
-        public async Task<IActionResult> AdicionarItem(AddCartItemRequest request)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(new { message = "Produto inválido para o carrinho." });
-            }
-
-            var userId = UsuarioId();
-            var item = await _db.CartItems
-                .SingleOrDefaultAsync(cartItem => cartItem.UserId == userId && cartItem.ProductId == request.ProductId);
-
-            if (item is null)
-            {
-                item = new CartItem
-                {
-                    UserId = userId,
-                    ProductId = request.ProductId,
-                    ProductName = request.ProductName.Trim(),
-                    UnitPrice = request.UnitPrice,
-                    Quantity = 1,
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                _db.CartItems.Add(item);
-            }
-            else
-            {
-                item.Quantity += 1;
-                item.ProductName = request.ProductName.Trim();
-                item.UnitPrice = request.UnitPrice;
-            }
-
-            await _db.SaveChangesAsync();
-
-            var items = await _db.CartItems
-                .Where(cartItem => cartItem.UserId == userId)
-                .OrderBy(cartItem => cartItem.CreatedAt)
-                .ToListAsync();
-
-            return Ok(MontarCarrinho(items));
-        }
-
-        [HttpPost("checkout")]
-        public async Task<IActionResult> Checkout()
-        {
-            var userId = UsuarioId();
-            var items = await _db.CartItems
-                .Where(item => item.UserId == userId)
-                .ToListAsync();
-
-            if (items.Count == 0)
-            {
-                return BadRequest(new { message = "Seu carrinho está vazio." });
-            }
-
-            _db.UserPurchases.AddRange(items.Select(item => new UserPurchase
-            {
-                UserId = userId,
-                ProductName = item.ProductName,
-                Quantity = item.Quantity,
-                TotalPrice = item.UnitPrice * item.Quantity,
-                Status = "confirmado",
-                CreatedAt = DateTime.UtcNow
-            }));
-
-            _db.CartItems.RemoveRange(items);
-            await _db.SaveChangesAsync();
-
-            return Ok(MontarCarrinho(Array.Empty<CartItem>()));
-        }
-
-        [HttpDelete("items/{id:int}")]
-        public async Task<IActionResult> RemoverItem(int id)
-        {
-            var userId = UsuarioId();
-            var item = await _db.CartItems
-                .SingleOrDefaultAsync(cartItem => cartItem.Id == id && cartItem.UserId == userId);
-
-            if (item is null)
-            {
-                return NotFound(new { message = "Item não encontrado no carrinho." });
-            }
-
-            _db.CartItems.Remove(item);
-            await _db.SaveChangesAsync();
-
-            var items = await _db.CartItems
-                .Where(cartItem => cartItem.UserId == userId)
-                .OrderBy(cartItem => cartItem.CreatedAt)
-                .ToListAsync();
-
-            return Ok(MontarCarrinho(items));
-        }
-
-        private int UsuarioId()
-        {
-            return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-        }
-
-        private static object MontarCarrinho(IReadOnlyCollection<CartItem> items)
-        {
-            return new
-            {
-                items = items.Select(item => new
-                {
-                    id = item.Id,
-                    productId = item.ProductId,
-                    productName = item.ProductName,
-                    unitPrice = item.UnitPrice,
-                    quantity = item.Quantity,
-                    subtotal = item.UnitPrice * item.Quantity
-                }),
-                count = items.Sum(item => item.Quantity),
-                total = items.Sum(item => item.UnitPrice * item.Quantity)
-            };
-        }
+        var result = await cartService.AddAsync(UserId, request);
+        return result.Success ? Ok(result.Value) : Problem(result);
     }
+
+    [HttpPost("checkout")]
+    public async Task<IActionResult> Checkout(CheckoutRequest request)
+    {
+        var result = await cartService.CheckoutAsync(UserId, request);
+        if (result.Success)
+            return Ok(new { result.Value!.Cart, result.Value.OrderId, result.Value.AlreadyProcessed, message = result.Message });
+        if (result.Code == "price_changed")
+            return Conflict(new { message = result.Message, priceChanged = true, cart = result.Value?.Cart });
+        return Problem(result);
+    }
+
+    [HttpDelete("items/{id:int}")]
+    public async Task<IActionResult> Remove(int id)
+    {
+        var result = await cartService.RemoveAsync(UserId, id);
+        return result.Success ? Ok(result.Value) : Problem(result);
+    }
+
+    private IActionResult Problem<T>(ServiceResult<T> result) => result.Code switch
+    {
+        "not_found" => NotFound(new { message = result.Message }),
+        "inactive" or "unavailable" or "empty" or "invalid_quantity" => BadRequest(new { message = result.Message }),
+        _ => Conflict(new { message = result.Message })
+    };
+
+    private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 }

@@ -18,6 +18,11 @@ namespace AuroraGaleria.Data
         public DbSet<UserTicket> UserTickets { get; set; }
         public DbSet<UserAppointment> UserAppointments { get; set; }
         public DbSet<UserPurchase> UserPurchases { get; set; }
+        public DbSet<VisitSession> VisitSessions { get; set; }
+        public DbSet<VisitReservation> VisitReservations { get; set; }
+        public DbSet<PurchaseOrder> PurchaseOrders { get; set; }
+        public DbSet<PurchaseItem> PurchaseItems { get; set; }
+        public DbSet<IdempotencyRecord> IdempotencyRecords { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -32,6 +37,28 @@ namespace AuroraGaleria.Data
                 entity.Property(user => user.Cpf).HasMaxLength(11).IsRequired();
                 entity.Property(user => user.Email).HasMaxLength(256).IsRequired();
                 entity.Property(user => user.PasswordHash).HasMaxLength(200).IsRequired();
+                entity.Property(user => user.Role).HasMaxLength(20).IsRequired();
+            });
+
+            modelBuilder.Entity<Exposicao>(entity =>
+            {
+                entity.ToTable("Exposicoes");
+                entity.Property(item => item.Titulo).HasMaxLength(140).IsRequired();
+                entity.Property(item => item.Descricao).HasMaxLength(1000);
+                entity.Property(item => item.ImagemUrl).HasMaxLength(300).IsRequired();
+                entity.Property(item => item.Periodo).HasColumnName("Data").HasMaxLength(80).IsRequired();
+                entity.Property(item => item.Inicio).HasColumnName("StartDate");
+                entity.Property(item => item.Fim).HasColumnName("EndDate");
+                entity.Property(item => item.Ativa).HasColumnName("IsActive");
+            });
+
+            modelBuilder.Entity<Produto>(entity =>
+            {
+                entity.ToTable("Produtos");
+                entity.Property(item => item.Nome).HasMaxLength(120).IsRequired();
+                entity.Property(item => item.Preco).HasConversion<double>();
+                entity.Property(item => item.ImagemUrl).HasMaxLength(300).IsRequired();
+                entity.Property(item => item.Ativo).HasColumnName("IsActive");
             });
 
             modelBuilder.Entity<CartItem>(entity =>
@@ -46,6 +73,55 @@ namespace AuroraGaleria.Data
                     .WithMany()
                     .HasForeignKey(item => item.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(item => item.Product)
+                    .WithMany()
+                    .HasForeignKey(item => item.ProductId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<VisitSession>(entity =>
+            {
+                entity.ToTable("visit_sessions");
+                entity.HasIndex(item => new { item.ExposureId, item.VisitDate, item.StartTime }).IsUnique();
+                entity.HasOne(item => item.Exposure)
+                    .WithMany(item => item.Sessoes)
+                    .HasForeignKey(item => item.ExposureId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<VisitReservation>(entity =>
+            {
+                entity.ToTable("visit_reservations");
+                entity.HasIndex(item => new { item.UserId, item.RequestId }).IsUnique();
+                entity.Property(item => item.Type).HasMaxLength(20).IsRequired();
+                entity.Property(item => item.Status).HasMaxLength(20).IsRequired();
+                entity.Property(item => item.RequestId).HasMaxLength(64).IsRequired();
+                entity.Property(item => item.ExposureName).HasMaxLength(140).IsRequired();
+                entity.HasOne(item => item.User).WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(item => item.VisitSession).WithMany(item => item.Reservations).HasForeignKey(item => item.VisitSessionId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<PurchaseOrder>(entity =>
+            {
+                entity.ToTable("purchase_orders");
+                entity.HasIndex(item => new { item.UserId, item.RequestId }).IsUnique();
+                entity.Property(item => item.TotalPrice).HasConversion<double>();
+                entity.HasOne(item => item.User).WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<PurchaseItem>(entity =>
+            {
+                entity.ToTable("purchase_items");
+                entity.Property(item => item.UnitPrice).HasConversion<double>();
+                entity.Property(item => item.TotalPrice).HasConversion<double>();
+                entity.HasOne(item => item.PurchaseOrder).WithMany(item => item.Items).HasForeignKey(item => item.PurchaseOrderId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(item => item.Product).WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<IdempotencyRecord>(entity =>
+            {
+                entity.ToTable("idempotency_records");
+                entity.HasIndex(item => new { item.UserId, item.Scope, item.RequestId }).IsUnique();
             });
 
             modelBuilder.Entity<UserTicket>(entity =>

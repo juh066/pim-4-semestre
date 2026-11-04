@@ -4,24 +4,18 @@ namespace AuroraGaleria.Models
 {
     public class BuyTicketRequest
     {
-        [Required]
-        public DateTime VisitDate { get; set; }
-
         [Range(1, 20)]
         public int Quantity { get; set; }
 
-        [Required]
-        [MaxLength(140)]
-        public string EventName { get; set; } = string.Empty;
+        [Range(1, int.MaxValue)] public int SessionId { get; set; }
+
+        [Required, MaxLength(64)] public string RequestId { get; set; } = string.Empty;
     }
 
     public class ScheduleAppointmentRequest
     {
-        [Required]
-        public DateTime VisitDate { get; set; }
+        [Range(1, int.MaxValue)] public int SessionId { get; set; }
 
-        [Required]
-        [MaxLength(140)]
-        public string EventName { get; set; } = string.Empty;
+        [Required, MaxLength(64)] public string RequestId { get; set; } = string.Empty;
     }
 }

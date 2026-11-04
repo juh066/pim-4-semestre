@@ -7,11 +7,16 @@ namespace AuroraGaleria.Models
         [Range(1, int.MaxValue)]
         public int ProductId { get; set; }
 
-        [Required]
-        [MaxLength(120)]
-        public string ProductName { get; set; } = string.Empty;
+        [Range(1, 20)]
+        public int Quantity { get; set; } = 1;
 
-        [Range(0.01, 999999)]
-        public decimal UnitPrice { get; set; }
+        [Required, MaxLength(64)]
+        public string RequestId { get; set; } = string.Empty;
+    }
+
+    public class CheckoutRequest
+    {
+        [Required, MaxLength(64)]
+        public string RequestId { get; set; } = string.Empty;
     }
 }

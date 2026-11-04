@@ -1,225 +1,123 @@
 using System.Security.Claims;
 using AuroraGaleria.Data;
 using AuroraGaleria.Models;
+using AuroraGaleria.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace AuroraGaleria.Controllers
+namespace AuroraGaleria.Controllers;
+
+[ApiController, Authorize, Route("user-actions")]
+public class UserActionsController(AppDbContext db, IReservationService reservations) : ControllerBase
 {
-    [ApiController]
-    [Authorize]
-    [Route("user-actions")]
-    public class UserActionsController : ControllerBase
+    [HttpGet("tickets")]
+    public Task<IActionResult> Tickets() => ListReservations(ReservationTypes.Ticket);
+
+    [HttpPost("tickets")]
+    public async Task<IActionResult> BuyTicket(BuyTicketRequest request)
     {
-        private readonly AppDbContext _db;
-
-        public UserActionsController(AppDbContext db)
-        {
-            _db = db;
-        }
-
-        [HttpGet("tickets")]
-        public async Task<IActionResult> MeusIngressos()
-        {
-            var userId = UsuarioId();
-            var today = DateTime.Today;
-            var tickets = await _db.UserTickets
-                .Where(ticket => ticket.UserId == userId)
-                .OrderByDescending(ticket => ticket.EventDate)
-                .ToListAsync();
-
-            return Ok(tickets.Select(ticket => new
-            {
-                ticket.Id,
-                ticket.EventName,
-                Date = ticket.EventDate.ToString("yyyy-MM-dd"),
-                ticket.Quantity,
-                Status = ticket.EventDate.Date < today ? "past" : "available"
-            }));
-        }
-
-        [HttpPost("tickets")]
-        public async Task<IActionResult> ComprarIngresso(BuyTicketRequest request)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(new { message = "Preencha a data e a quantidade do ingresso corretamente." });
-            }
-
-            if (!ExposicaoValida(request.EventName, request.VisitDate))
-            {
-                return BadRequest(new { message = "Escolha uma exposição e uma data dentro do período disponível." });
-            }
-
-            var userId = UsuarioId();
-            var ticket = new UserTicket
-            {
-                UserId = userId,
-                EventName = request.EventName.Trim(),
-                EventDate = request.VisitDate.Date,
-                Quantity = request.Quantity,
-                Status = request.VisitDate.Date < DateTime.Today ? "past" : "available",
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _db.UserTickets.Add(ticket);
-            await _db.SaveChangesAsync();
-
-            return Ok(new { message = "Ingresso comprado com sucesso!" });
-        }
-
-        [HttpGet("appointments")]
-        public async Task<IActionResult> MeusAgendamentos()
-        {
-            var userId = UsuarioId();
-            var appointments = await _db.UserAppointments
-                .Where(appointment => appointment.UserId == userId)
-                .OrderByDescending(appointment => appointment.AppointmentDate)
-                .ToListAsync();
-
-            return Ok(appointments.Select(appointment => new
-            {
-                appointment.Id,
-                appointment.EventName,
-                Date = appointment.AppointmentDate.ToString("yyyy-MM-dd"),
-                appointment.Quantity,
-                appointment.Status
-            }));
-        }
-
-        [HttpPost("appointments")]
-        public async Task<IActionResult> AgendarVisita(ScheduleAppointmentRequest request)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(new { message = "Preencha os dados do agendamento corretamente." });
-            }
-
-            if (!ExposicaoValida(request.EventName, request.VisitDate))
-            {
-                return BadRequest(new { message = "Escolha uma exposição e uma data dentro do período disponível." });
-            }
-
-            var userId = UsuarioId();
-            var appointment = new UserAppointment
-            {
-                UserId = userId,
-                EventName = request.EventName.Trim(),
-                AppointmentDate = request.VisitDate.Date,
-                Quantity = 1,
-                Status = "Confirmado",
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _db.UserAppointments.Add(appointment);
-            await _db.SaveChangesAsync();
-
-            return Ok(new { message = "Visita agendada com sucesso!" });
-        }
-
-        [HttpDelete("appointments/{id:int}")]
-        public async Task<IActionResult> CancelarAgendamento(int id)
-        {
-            var userId = UsuarioId();
-            var appointment = await _db.UserAppointments
-                .SingleOrDefaultAsync(item => item.Id == id);
-
-            if (appointment == null || appointment.UserId != userId)
-            {
-                return Unauthorized();
-            }
-
-            if (!string.Equals(appointment.Status, "Confirmado", StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest("Este agendamento não pode ser cancelado.");
-            }
-
-            appointment.Status = "Cancelado";
-            await _db.SaveChangesAsync();
-
-            return Ok();
-        }
-
-        [HttpGet("purchases")]
-        public async Task<IActionResult> MinhasCompras()
-        {
-            var userId = UsuarioId();
-            var purchases = await _db.UserPurchases
-                .Where(purchase => purchase.UserId == userId)
-                .OrderByDescending(purchase => purchase.CreatedAt)
-                .ToListAsync();
-
-            return Ok(purchases.Select(purchase => new
-            {
-                purchase.Id,
-                purchase.ProductName,
-                purchase.Quantity,
-                purchase.TotalPrice,
-                purchase.Status,
-                Situation = "Confirmado • Contatando a transportadora",
-                CreatedAt = purchase.CreatedAt.ToString("yyyy-MM-dd")
-            }));
-        }
-
-        [HttpGet("analytics")]
-        public async Task<IActionResult> Analytics()
-        {
-            var vendasPorProduto = await _db.UserPurchases
-                .GroupBy(purchase => purchase.ProductName)
-                .Select(group => new
-                {
-                    Produto = group.Key,
-                    Quantidade = group.Sum(purchase => purchase.Quantity),
-                    Receita = group.Sum(purchase => purchase.TotalPrice)
-                })
-                .OrderByDescending(item => item.Quantidade)
-                .ToListAsync();
-
-            var exposicoesValidas = ExposicoesCatalogo.Todas
-                .Select(exposicao => exposicao.Titulo)
-                .ToList();
-
-            var ingressosPorExposicao = await _db.UserTickets
-                .Where(ticket => exposicoesValidas.Contains(ticket.EventName))
-                .GroupBy(ticket => ticket.EventName)
-                .Select(group => new
-                {
-                    Exposicao = group.Key,
-                    Quantidade = group.Sum(ticket => ticket.Quantity)
-                })
-                .OrderByDescending(item => item.Quantidade)
-                .ToListAsync();
-
-            return Ok(new
-            {
-                VendasPorProduto = vendasPorProduto.Select(item => new
-                {
-                    item.Produto,
-                    item.Quantidade,
-                    item.Receita
-                }),
-                IngressosPorExposicao = ingressosPorExposicao.Select(item => new
-                {
-                    item.Exposicao,
-                    item.Quantidade
-                })
-            });
-        }
-
-        private static bool ExposicaoValida(string eventName, DateTime visitDate)
-        {
-            if (string.IsNullOrWhiteSpace(eventName))
-            {
-                return false;
-            }
-
-            return ExposicoesCatalogo.DataValida(eventName, visitDate);
-        }
-
-        private int UsuarioId()
-        {
-            return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-        }
+        var result = await reservations.ReserveAsync(UserId, request.SessionId, request.Quantity, ReservationTypes.Ticket, request.RequestId);
+        return ReservationResponse(result, "Ingresso reservado na simulação acadêmica.");
     }
+
+    [HttpGet("appointments")]
+    public Task<IActionResult> Appointments() => ListReservations(ReservationTypes.Appointment);
+
+    [HttpPost("appointments")]
+    public async Task<IActionResult> Schedule(ScheduleAppointmentRequest request)
+    {
+        var result = await reservations.ReserveAsync(UserId, request.SessionId, 1, ReservationTypes.Appointment, request.RequestId);
+        return ReservationResponse(result, "Visita agendada com sucesso.");
+    }
+
+    [HttpDelete("appointments/{id:int}"), HttpDelete("reservations/{id:int}")]
+    public async Task<IActionResult> Cancel(int id)
+    {
+        var result = await reservations.CancelAsync(UserId, id);
+        if (result.Success) return Ok(new { message = result.Message });
+        if (result.Code == "not_found")
+        {
+            var legacy = await db.UserAppointments.SingleOrDefaultAsync(item => item.Id == id && item.UserId == UserId);
+            if (legacy is not null && !string.Equals(legacy.Status, "Cancelado", StringComparison.OrdinalIgnoreCase))
+            {
+                legacy.Status = "Cancelado";
+                await db.SaveChangesAsync();
+                return Ok(new { message = "Agendamento legado cancelado." });
+            }
+        }
+        return result.Code == "not_found" ? NotFound(new { message = result.Message }) : Conflict(new { message = result.Message });
+    }
+
+    [HttpGet("purchases")]
+    public async Task<IActionResult> Purchases()
+    {
+        var orders = await db.PurchaseOrders.AsNoTracking().Where(order => order.UserId == UserId)
+            .Include(order => order.Items).OrderByDescending(order => order.CreatedAt).ToListAsync();
+        var current = orders.SelectMany(order => order.Items.Select(item => new
+        {
+            id = item.Id, orderId = order.Id, item.ProductName, item.Quantity, item.UnitPrice, item.TotalPrice,
+            status = order.Status, situation = "Simulação acadêmica confirmada", createdAt = order.CreatedAt.ToString("yyyy-MM-dd")
+        })).Cast<object>().ToList();
+        var legacy = await db.UserPurchases.AsNoTracking().Where(item => item.UserId == UserId).OrderByDescending(item => item.CreatedAt).ToListAsync();
+        current.AddRange(legacy.Select(item => (object)new
+        {
+            id = item.Id, orderId = (int?)null, item.ProductName, item.Quantity,
+            unitPrice = item.Quantity > 0 ? item.TotalPrice / item.Quantity : 0,
+            item.TotalPrice, item.Status, situation = "Registro histórico legado", createdAt = item.CreatedAt.ToString("yyyy-MM-dd")
+        }));
+        return Ok(current);
+    }
+
+    [Authorize(Roles = UserRoles.Administrator), HttpGet("analytics")]
+    public async Task<IActionResult> Analytics()
+    {
+        var sales = await db.PurchaseItems.AsNoTracking().GroupBy(item => item.ProductName)
+            .Select(group => new { Produto = group.Key, Quantidade = group.Sum(item => item.Quantity), Receita = group.Sum(item => item.TotalPrice) })
+            .OrderByDescending(item => item.Quantidade).ToListAsync();
+        var tickets = await db.VisitReservations.AsNoTracking()
+            .Where(item => item.Type == ReservationTypes.Ticket && item.Status == ReservationStatuses.Confirmed)
+            .GroupBy(item => item.ExposureName)
+            .Select(group => new { Exposicao = group.Key, Quantidade = group.Sum(item => item.Quantity) })
+            .OrderByDescending(item => item.Quantidade).ToListAsync();
+        return Ok(new { VendasPorProduto = sales, IngressosPorExposicao = tickets });
+    }
+
+    private async Task<IActionResult> ListReservations(string type)
+    {
+        var today = DateTime.Today;
+        var items = await db.VisitReservations.AsNoTracking().Where(item => item.UserId == UserId && item.Type == type)
+            .OrderByDescending(item => item.VisitDate).ToListAsync();
+        items = items.OrderByDescending(item => item.VisitDate).ThenBy(item => item.StartTime).ToList();
+        var result = items.Select(item => new
+        {
+            item.Id, eventName = item.ExposureName, date = item.VisitDate.ToString("yyyy-MM-dd"),
+            time = item.StartTime.ToString(@"hh\:mm"), item.Quantity,
+            status = item.Status == ReservationStatuses.Cancelled ? "cancelado" : item.VisitDate.Date < today ? "past" : "confirmado"
+        }).Cast<object>().ToList();
+        if (type == ReservationTypes.Ticket)
+        {
+            var legacy = await db.UserTickets.AsNoTracking().Where(item => item.UserId == UserId).ToListAsync();
+            result.AddRange(legacy.Select(item => (object)new { item.Id, eventName = item.EventName, date = item.EventDate.ToString("yyyy-MM-dd"), time = "--:--", item.Quantity, status = item.EventDate.Date < today ? "past" : item.Status }));
+        }
+        else
+        {
+            var legacy = await db.UserAppointments.AsNoTracking().Where(item => item.UserId == UserId).ToListAsync();
+            result.AddRange(legacy.Select(item => (object)new { item.Id, eventName = item.EventName, date = item.AppointmentDate.ToString("yyyy-MM-dd"), time = "--:--", item.Quantity, status = item.Status.ToLowerInvariant() }));
+        }
+        return Ok(result);
+    }
+
+    private IActionResult ReservationResponse(ServiceResult<VisitReservation> result, string successMessage)
+    {
+        if (result.Success) return Ok(new { message = string.IsNullOrEmpty(result.Message) ? successMessage : result.Message, id = result.Value!.Id });
+        return result.Code switch
+        {
+            "not_found" => NotFound(new { message = result.Message }),
+            "capacity" => Conflict(new { message = result.Message }),
+            _ => BadRequest(new { message = result.Message })
+        };
+    }
+
+    private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 }

@@ -23,5 +23,15 @@ namespace AuroraGaleria.Models
         public string PasswordHash { get; set; } = string.Empty;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [Required]
+        [MaxLength(20)]
+        public string Role { get; set; } = UserRoles.Visitor;
+    }
+
+    public static class UserRoles
+    {
+        public const string Visitor = "Visitor";
+        public const string Administrator = "Administrator";
     }
 }

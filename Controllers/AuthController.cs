@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Antiforgery;
+using AuroraGaleria.Services;
 
 namespace AuroraGaleria.Controllers
 {
@@ -34,6 +36,11 @@ namespace AuroraGaleria.Controllers
                     return BadRequest(new { message = "Preencha nome, CPF, email e senha corretamente." });
                 }
 
+                if (!CpfValidator.IsValid(request.Cpf))
+                {
+                    return BadRequest(new { message = "Informe um CPF válido. Use somente dados fictícios neste projeto acadêmico." });
+                }
+
                 if (await _db.Users.AnyAsync(user => user.Email == request.Email))
                 {
                     return Conflict(new { message = "Este email já está cadastrado." });
@@ -50,6 +57,7 @@ namespace AuroraGaleria.Controllers
                     Cpf = request.Cpf,
                     Email = request.Email,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                    Role = UserRoles.Visitor,
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -62,7 +70,7 @@ namespace AuroraGaleria.Controllers
             {
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new
                 {
-                    message = "Banco de dados indisponível. Verifique se o arquivo SQLite e a conexão DefaultConnection estão corretos."
+                    message = "Não foi possível concluir o cadastro agora. Tente novamente mais tarde."
                 });
             }
         }
@@ -84,7 +92,8 @@ namespace AuroraGaleria.Controllers
                 {
                     new(ClaimTypes.NameIdentifier, user.Id.ToString()),
                     new(ClaimTypes.Name, user.Name),
-                    new(ClaimTypes.Email, user.Email)
+                    new(ClaimTypes.Email, user.Email),
+                    new(ClaimTypes.Role, user.Role)
                 };
 
                 var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
@@ -99,13 +108,13 @@ namespace AuroraGaleria.Controllers
                         ExpiresUtc = DateTimeOffset.UtcNow.AddDays(7)
                     });
 
-                return Ok(new { name = user.Name, initials = GetInitials(user.Name), email = user.Email });
+                return Ok(new { name = user.Name, initials = GetInitials(user.Name), email = user.Email, role = user.Role });
             }
             catch (Exception)
             {
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new
                 {
-                    message = "Banco de dados indisponível. Não foi possível validar o login agora."
+                    message = "Não foi possível validar o login agora. Tente novamente mais tarde."
                 });
             }
         }
@@ -125,7 +134,16 @@ namespace AuroraGaleria.Controllers
             var name = User.Identity?.Name ?? string.Empty;
             var email = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty;
 
-            return Ok(new { name, initials = GetInitials(name), email });
+            return Ok(new { name, initials = GetInitials(name), email, role = User.FindFirstValue(ClaimTypes.Role) });
+        }
+
+        [AllowAnonymous]
+        [IgnoreAntiforgeryToken]
+        [HttpGet("csrf")]
+        public IActionResult Csrf([FromServices] IAntiforgery antiforgery)
+        {
+            var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+            return Ok(new { token = tokens.RequestToken });
         }
 
         private static string GetInitials(string name)
