@@ -18,7 +18,7 @@ public class UserActionsController(AppDbContext db, IReservationService reservat
     public async Task<IActionResult> BuyTicket(BuyTicketRequest request)
     {
         var result = await reservations.ReserveAsync(UserId, request.SessionId, request.Quantity, ReservationTypes.Ticket, request.RequestId);
-        return ReservationResponse(result, "Ingresso reservado na simulação acadêmica.");
+        return ReservationResponse(result, "Ingresso reservado com sucesso.");
     }
 
     [HttpGet("appointments")]
@@ -35,7 +35,7 @@ public class UserActionsController(AppDbContext db, IReservationService reservat
     public async Task<IActionResult> Cancel(int id)
     {
         var result = await reservations.CancelAsync(UserId, id);
-        if (result.Success) return Ok(new { message = result.Message });
+        if (result.Success) return Ok(new { message = "Agendamento cancelado com sucesso." });
         if (result.Code == "not_found")
         {
             var legacy = await db.UserAppointments.SingleOrDefaultAsync(item => item.Id == id && item.UserId == UserId);
@@ -43,7 +43,7 @@ public class UserActionsController(AppDbContext db, IReservationService reservat
             {
                 legacy.Status = "Cancelado";
                 await db.SaveChangesAsync();
-                return Ok(new { message = "Agendamento legado cancelado." });
+                return Ok(new { message = "Agendamento cancelado com sucesso." });
             }
         }
         return result.Code == "not_found" ? NotFound(new { message = result.Message }) : Conflict(new { message = result.Message });
@@ -57,7 +57,7 @@ public class UserActionsController(AppDbContext db, IReservationService reservat
         var current = orders.SelectMany(order => order.Items.Select(item => new
         {
             id = item.Id, orderId = order.Id, item.ProductName, item.Quantity, item.UnitPrice, item.TotalPrice,
-            status = order.Status, situation = "Simulação acadêmica confirmada", createdAt = order.CreatedAt.ToString("yyyy-MM-dd")
+            status = "Confirmada", situation = "Compra registrada", createdAt = order.CreatedAt.ToString("yyyy-MM-dd")
         })).Cast<object>().ToList();
         var legacy = await db.UserPurchases.AsNoTracking().Where(item => item.UserId == UserId).OrderByDescending(item => item.CreatedAt).ToListAsync();
         current.AddRange(legacy.Select(item => (object)new
@@ -110,7 +110,7 @@ public class UserActionsController(AppDbContext db, IReservationService reservat
 
     private IActionResult ReservationResponse(ServiceResult<VisitReservation> result, string successMessage)
     {
-        if (result.Success) return Ok(new { message = string.IsNullOrEmpty(result.Message) ? successMessage : result.Message, id = result.Value!.Id });
+        if (result.Success) return Ok(new { message = successMessage, id = result.Value!.Id });
         return result.Code switch
         {
             "not_found" => NotFound(new { message = result.Message }),

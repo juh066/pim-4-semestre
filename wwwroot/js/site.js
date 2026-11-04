@@ -60,6 +60,156 @@ function formatDate(value) {
     return parts.length === 3 ? new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('pt-BR') : '';
 }
 
+const registrationEmailMessage = 'Informe um e-mail válido, como nome@dominio.com.';
+
+function isValidRegistrationEmail(value) {
+    const email = String(value || '').trim().toLowerCase();
+    if (!email || email.length > 256 || /\s/.test(email)) return false;
+    const parts = email.split('@');
+    if (parts.length !== 2) return false;
+    const [local, domain] = parts;
+    if (!local || local.length > 64 || local.startsWith('.') || local.endsWith('.') || local.includes('..')) return false;
+    if (!domain || domain.length > 253 || domain.startsWith('.') || domain.endsWith('.') || domain.includes('..')) return false;
+    const labels = domain.split('.');
+    if (labels.length < 2 || labels.some(label => !label || label.length > 63 || label.startsWith('-') || label.endsWith('-') || !/^[a-z0-9-]+$/i.test(label))) return false;
+    const ending = labels.at(-1);
+    return ending.length >= 2 && !/^\d+$/.test(ending);
+}
+
+function validateRegistrationEmail(input) {
+    const help = document.getElementById('registerEmailMessage');
+    const valid = isValidRegistrationEmail(input.value);
+    input.setCustomValidity(valid ? '' : registrationEmailMessage);
+    input.setAttribute('aria-invalid', String(!valid));
+    help?.classList.toggle('is-error', !valid);
+    return valid;
+}
+
+class SessionPicker {
+    constructor(root, sessions) {
+        this.root = root;
+        this.prefix = root.dataset.sessionPicker;
+        this.sessions = sessions;
+        this.exposure = root.querySelector('[data-session-exposure]');
+        this.date = root.querySelector('[data-session-date]');
+        this.timeField = root.querySelector('[data-session-time-field]');
+        this.times = root.querySelector('[data-session-times]');
+        this.sessionId = root.querySelector('[data-session-id]');
+        this.unavailable = root.querySelector('[data-session-unavailable]');
+        this.summary = root.querySelector('[data-session-summary]');
+        this.form = root.closest('form');
+        this.submit = this.form?.querySelector('[data-session-submit]');
+        this.quantity = this.form?.querySelector('#ticketQuantity');
+
+        this.exposure?.addEventListener('change', () => this.selectExposure());
+        this.date?.addEventListener('change', () => this.selectDate());
+        this.quantity?.addEventListener('input', () => this.updateSubmit());
+        this.updateSubmit();
+    }
+
+    availableSessions() {
+        return this.sessions.filter(session => Number(session.available) > 0);
+    }
+
+    selectExposure() {
+        this.resetDate();
+        const exposureId = Number(this.exposure.value);
+        if (!exposureId) return;
+
+        const sessions = this.availableSessions().filter(session => Number(session.exposureId) === exposureId);
+        const dates = [...new Set(sessions.map(session => session.date))];
+        if (dates.length === 0) {
+            this.showUnavailable('Não há sessões disponíveis para esta exposição.');
+            return;
+        }
+
+        dates.forEach(date => this.date.add(new Option(date, date)));
+        this.date.disabled = false;
+    }
+
+    selectDate() {
+        this.clearTime();
+        const exposureId = Number(this.exposure.value);
+        if (!exposureId || !this.date.value) return;
+
+        const sessions = this.availableSessions().filter(session =>
+            Number(session.exposureId) === exposureId && session.date === this.date.value);
+        if (sessions.length === 0) {
+            this.showUnavailable('Não há horários disponíveis nesta data.');
+            return;
+        }
+
+        sessions.forEach(session => this.addTimeOption(session));
+        this.timeField.hidden = false;
+        this.timeField.disabled = false;
+    }
+
+    addTimeOption(session) {
+        const wrapper = document.createElement('span');
+        wrapper.className = 'session-time-choice';
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = `${this.prefix}SessionTime`;
+        input.id = `${this.prefix}Session${session.id}`;
+        input.value = session.id;
+        input.addEventListener('change', () => this.selectSession(session));
+        const label = document.createElement('label');
+        label.htmlFor = input.id;
+        label.className = 'session-time-option';
+        const time = document.createElement('span');
+        time.textContent = session.time;
+        const availability = document.createElement('small');
+        availability.textContent = `${session.available} ${Number(session.available) === 1 ? 'vaga' : 'vagas'}`;
+        label.append(time, availability);
+        wrapper.append(input, label);
+        this.times.appendChild(wrapper);
+    }
+
+    selectSession(session) {
+        this.sessionId.value = session.id;
+        this.sessionId.dataset.available = session.available;
+        this.summary.textContent = `${session.exposureName} · ${session.date} · ${session.time}`;
+        this.summary.hidden = false;
+        if (this.quantity) this.quantity.max = Math.min(20, Number(session.available));
+        this.updateSubmit();
+    }
+
+    resetDate() {
+        this.date.replaceChildren(new Option('Selecione uma data', ''));
+        this.date.disabled = true;
+        this.clearTime();
+    }
+
+    clearTime() {
+        this.times.replaceChildren();
+        this.timeField.hidden = true;
+        this.timeField.disabled = true;
+        this.sessionId.value = '';
+        delete this.sessionId.dataset.available;
+        this.summary.textContent = '';
+        this.summary.hidden = true;
+        this.unavailable.hidden = true;
+        if (this.quantity) this.quantity.max = 20;
+        this.updateSubmit();
+    }
+
+    showUnavailable(message) {
+        this.unavailable.textContent = message;
+        this.unavailable.hidden = false;
+        this.updateSubmit();
+    }
+
+    updateSubmit() {
+        const available = Number(this.sessionId.dataset.available || 0);
+        const quantity = this.quantity ? Number(this.quantity.value) : 1;
+        const validQuantity = Number.isInteger(quantity) && quantity >= 1 && quantity <= 20 && quantity <= available;
+        if (this.quantity) {
+            this.quantity.setCustomValidity(available > 0 && quantity > available ? `Há somente ${available} vagas disponíveis.` : '');
+        }
+        if (this.submit) this.submit.disabled = !this.sessionId.value || !validQuantity;
+    }
+}
+
 class PerfilUsuario {
     constructor() {
         this.button = document.getElementById('userProfileIcon'); this.name = document.getElementById('userName');
@@ -129,7 +279,7 @@ class RegistrosUsuario {
                 const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'user-record-cancel'; cancel.textContent = 'Cancelar';
                 cancel.addEventListener('click', async () => {
                     cancel.disabled = true; const result = await apiFetch(`/user-actions/reservations/${item.id}`, { method: 'DELETE' });
-                    if (result.ok) { avisos.success('Reserva cancelada; a vaga foi liberada.'); await this.loadReservations(type); }
+                    if (result.ok) { avisos.success(await readApiMessage(result, 'Agendamento cancelado com sucesso.')); await this.loadReservations(type); }
                     else { avisos.error(await readApiMessage(result, 'Não foi possível cancelar.')); cancel.disabled = false; }
                 }); row.appendChild(cancel);
             }
@@ -174,8 +324,10 @@ class Carrinho {
         if (response.status === 409) {
             const data = await response.json(); if (data.cart) this.render(data.cart); avisos.warning(data.message); return false;
         }
-        if (!response.ok) { avisos.error(await readApiMessage(response, 'Não foi possível confirmar a simulação.')); return false; }
-        const data = await response.json(); this.render(data.cart); await window.registrosUsuario?.load(); avisos.success('Compra simulada confirmada. Nenhum pagamento foi processado.'); return true;
+        if (!response.ok) { avisos.error(await readApiMessage(response, 'Não foi possível concluir a compra.')); return false; }
+        const data = await response.json(); this.render(data.cart); await window.registrosUsuario?.load();
+        avisos.success(data.message || 'Compra registrada com sucesso. Esta operação é uma simulação para fins acadêmicos. Nenhuma cobrança foi realizada.');
+        return true;
     }
     async remove(itemId) {
         const response = await apiFetch(`/cart/items/${itemId}`, { method: 'DELETE' });
@@ -205,6 +357,9 @@ class Carrinho {
 
 document.addEventListener('DOMContentLoaded', () => {
     window.registrosUsuario = new RegistrosUsuario(); window.carrinho = new Carrinho(); window.perfilUsuario = new PerfilUsuario();
+    const catalogElement = document.getElementById('sessionCatalog');
+    const sessionCatalog = catalogElement ? JSON.parse(catalogElement.textContent || '[]') : [];
+    document.querySelectorAll('[data-session-picker]').forEach(root => new SessionPicker(root, sessionCatalog));
 
     document.getElementById('paymentForm')?.addEventListener('submit', async event => {
         event.preventDefault(); const button = document.getElementById('paymentConfirmButton'); button.disabled = true;
@@ -212,8 +367,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (completed) { bootstrap.Modal.getOrCreateInstance(document.getElementById('paymentModal')).hide(); window.carrinho.close(); }
     });
 
+    const registerEmail = document.getElementById('registerEmail');
+    registerEmail?.addEventListener('input', () => {
+        registerEmail.setCustomValidity(''); registerEmail.removeAttribute('aria-invalid');
+        document.getElementById('registerEmailMessage')?.classList.remove('is-error');
+    });
+    registerEmail?.addEventListener('blur', () => { if (registerEmail.value) validateRegistrationEmail(registerEmail); });
+
     document.getElementById('registerForm')?.addEventListener('submit', async event => {
-        event.preventDefault(); const response = await postJson('/auth/register', { name: document.getElementById('registerName').value, cpf: document.getElementById('cpfInput').value, email: document.getElementById('registerEmail').value, password: document.getElementById('registerPassword').value });
+        event.preventDefault();
+        registerEmail.value = registerEmail.value.trim();
+        if (!validateRegistrationEmail(registerEmail)) { registerEmail.reportValidity(); registerEmail.focus(); return; }
+        const response = await postJson('/auth/register', { name: document.getElementById('registerName').value, cpf: document.getElementById('cpfInput').value, email: registerEmail.value, password: document.getElementById('registerPassword').value });
         if (!response.ok) return avisos.error(await readApiMessage(response, 'Não foi possível concluir o cadastro.'));
         avisos.success('Cadastro de visitante concluído. Faça login para continuar.'); event.target.reset();
     });
@@ -228,11 +393,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('ticketForm')?.addEventListener('submit', async event => {
         event.preventDefault(); const response = await postJson('/user-actions/tickets', { sessionId: Number(document.getElementById('ticketSession').value), quantity: Number(document.getElementById('ticketQuantity').value), requestId: requestId() });
         if (!response.ok) return avisos.error(await readApiMessage(response, 'Não foi possível reservar o ingresso.'));
-        avisos.success(await readApiMessage(response, 'Ingresso reservado.')); window.registrosUsuario.load();
+        avisos.success(await readApiMessage(response, 'Ingresso reservado com sucesso.')); window.registrosUsuario.load();
     });
     document.getElementById('agendaForm')?.addEventListener('submit', async event => {
         event.preventDefault(); const response = await postJson('/user-actions/appointments', { sessionId: Number(document.getElementById('agendaSession').value), requestId: requestId() });
         if (!response.ok) return avisos.error(await readApiMessage(response, 'Não foi possível agendar a visita.'));
-        avisos.success(await readApiMessage(response, 'Visita agendada.')); window.registrosUsuario.load();
+        avisos.success(await readApiMessage(response, 'Visita agendada com sucesso.')); window.registrosUsuario.load();
     });
 });

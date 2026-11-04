@@ -113,14 +113,14 @@
 
                         <div class="auth-panel">
                             <h3>Cadastro</h3>
-                            <p>Use apenas dados fictícios neste projeto acadêmico.</p>
                             <form id="registerForm">
                                 <label for="registerName">Nome</label>
                                 <input id="registerName" type="text" autocomplete="name" required>
                                 <label for="cpfInput">CPF fictício (11 dígitos)</label>
                                 <input type="text" id="cpfInput" inputmode="numeric" maxlength="11" required>
                                 <label for="registerEmail">E-mail</label>
-                                <input id="registerEmail" type="email" autocomplete="email" required>
+                                <input id="registerEmail" type="email" autocomplete="email" maxlength="256" aria-describedby="registerEmailMessage" required>
+                                <small id="registerEmailMessage" class="form-field-help">Informe um e-mail válido, como nome@dominio.com.</small>
                                 <label for="registerPassword">Senha</label>
                                 <input id="registerPassword" type="password" autocomplete="new-password" minlength="6" required>
                                 <button type="submit">Cadastrar</button>
@@ -158,15 +158,14 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content auth-modal-content payment-modal-content">
                 <div class="modal-header">
-                    <h2 class="modal-title fs-5" id="paymentModalLabel">Confirmar simulação</h2>
+                    <h2 class="modal-title fs-5" id="paymentModalLabel">Confirmar compra</h2>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                 </div>
                 <div class="modal-body">
                     <form id="paymentForm" class="payment-form">
-                        <p><strong>Nenhum pagamento será processado.</strong></p>
-                        <p>Ao confirmar, o sistema registrará apenas uma compra simulada para demonstrar o fluxo acadêmico.</p>
+                        <p>Revise os itens do carrinho e confirme para registrar a compra.</p>
                         <div class="payment-actions">
-                            <button id="paymentConfirmButton" type="submit">Confirmar simulação</button>
+                            <button id="paymentConfirmButton" type="submit">Confirmar compra</button>
                             <button id="paymentCancelButton" class="payment-cancel-button" type="button" data-bs-dismiss="modal">Cancelar</button>
                         </div>
                     </form>

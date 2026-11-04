@@ -141,7 +141,9 @@ public class CartService(AppDbContext db) : ICartService
         db.CartItems.RemoveRange(items);
         await db.SaveChangesAsync();
         await tx.CommitAsync();
-        return ServiceResult<CheckoutDto>.Ok(new CheckoutDto(new CartDto([], 0, 0), order.Id, false, false), "Simulação de compra confirmada.");
+        return ServiceResult<CheckoutDto>.Ok(
+            new CheckoutDto(new CartDto([], 0, 0), order.Id, false, false),
+            "Compra registrada com sucesso. Esta operação é uma simulação para fins acadêmicos. Nenhuma cobrança foi realizada.");
     }
 
     private static CartDto Map(IReadOnlyCollection<CartItem> items) => new(

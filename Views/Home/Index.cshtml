@@ -1,6 +1,10 @@
 @model AuroraGaleria.Models.HomeViewModel
+@using System.Globalization
+@using System.Text.Json
 @{
     ViewData["Title"] = "Galeria Aurora";
+    var ptBr = CultureInfo.GetCultureInfo("pt-BR");
+    var sessionsJson = JsonSerializer.Serialize(Model.Sessoes, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 }
 
 <section class="hero">
@@ -16,12 +20,15 @@
     <div class="cards">
         @foreach (var expo in Model.Exposicoes)
         {
+            var period = expo.Inicio.Year == expo.Fim.Year
+                ? $"{expo.Inicio.ToString("d 'de' MMMM", ptBr)} a {expo.Fim.ToString("d 'de' MMMM 'de' yyyy", ptBr)}"
+                : $"{expo.Inicio.ToString("d 'de' MMMM 'de' yyyy", ptBr)} a {expo.Fim.ToString("d 'de' MMMM 'de' yyyy", ptBr)}";
             <article class="card">
                 <img src="@expo.ImagemUrl" alt="Obra representativa da exposição @expo.Titulo">
                 <div class="card-content">
                     <h3>@expo.Titulo</h3>
                     <p>@expo.Descricao</p>
-                    <span>@expo.Periodo</span>
+                    <span>@period</span>
                 </div>
             </article>
         }
@@ -31,20 +38,37 @@
 <section id="comprar-ingressos" class="tickets">
     <div class="ticket-box">
         <h2>Reservar ingressos</h2>
-        <p class="academic-notice">Projeto acadêmico: esta reserva é uma simulação e não realiza cobrança.</p>
         <form id="ticketForm">
-            <label for="ticketSession">Sessão</label>
-            <select id="ticketSession" required @(Model.Sessoes.Count == 0 ? "disabled" : null)>
-                <option value="">Selecione exposição, data e horário</option>
-                @foreach (var session in Model.Sessoes.Where(item => item.Available > 0))
-                {
-                    <option value="@session.Id">@session.ExposureName — @session.Date às @session.Time (@session.Available vagas)</option>
-                }
-            </select>
+            <div class="session-picker" data-session-picker="ticket">
+                <div class="session-picker-fields">
+                    <div class="session-picker-field">
+                        <label for="ticketExposure">Exposição</label>
+                        <select id="ticketExposure" data-session-exposure required>
+                            <option value="">Selecione uma exposição</option>
+                            @foreach (var exposure in Model.Exposicoes)
+                            {
+                                <option value="@exposure.Id">@exposure.Titulo</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="session-picker-field">
+                        <label for="ticketDate">Data</label>
+                        <select id="ticketDate" data-session-date required disabled>
+                            <option value="">Selecione uma data</option>
+                        </select>
+                    </div>
+                    <fieldset class="session-time-field" data-session-time-field hidden disabled>
+                        <legend>Horário</legend>
+                        <div class="session-time-options" data-session-times></div>
+                    </fieldset>
+                </div>
+                <input id="ticketSession" data-session-id type="hidden" value="">
+                <p class="session-unavailable" data-session-unavailable role="status" hidden>Não há sessões disponíveis para esta exposição.</p>
+                <p class="session-summary" data-session-summary aria-live="polite" hidden></p>
+            </div>
             <label for="ticketQuantity">Quantidade</label>
             <input id="ticketQuantity" type="number" min="1" max="20" value="1" required>
-            <button type="submit" @(Model.Sessoes.Count == 0 ? "disabled" : null)>Reservar</button>
-            @if (Model.Sessoes.Count == 0) { <p>Não há sessões futuras disponíveis no momento.</p> }
+            <button type="submit" data-session-submit disabled>Reservar</button>
         </form>
     </div>
 </section>
@@ -53,22 +77,42 @@
     <div class="agenda-box">
         <h2>Agendar visita</h2>
         <form id="agendaForm">
-            <label for="agendaSession">Sessão</label>
-            <select id="agendaSession" required @(Model.Sessoes.Count == 0 ? "disabled" : null)>
-                <option value="">Selecione exposição, data e horário</option>
-                @foreach (var session in Model.Sessoes.Where(item => item.Available > 0))
-                {
-                    <option value="@session.Id">@session.ExposureName — @session.Date às @session.Time (@session.Available vagas)</option>
-                }
-            </select>
-            <button type="submit" @(Model.Sessoes.Count == 0 ? "disabled" : null)>Agendar</button>
+            <div class="session-picker" data-session-picker="agenda">
+                <div class="session-picker-fields">
+                    <div class="session-picker-field">
+                        <label for="agendaExposure">Exposição</label>
+                        <select id="agendaExposure" data-session-exposure required>
+                            <option value="">Selecione uma exposição</option>
+                            @foreach (var exposure in Model.Exposicoes)
+                            {
+                                <option value="@exposure.Id">@exposure.Titulo</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="session-picker-field">
+                        <label for="agendaDate">Data</label>
+                        <select id="agendaDate" data-session-date required disabled>
+                            <option value="">Selecione uma data</option>
+                        </select>
+                    </div>
+                    <fieldset class="session-time-field" data-session-time-field hidden disabled>
+                        <legend>Horário</legend>
+                        <div class="session-time-options" data-session-times></div>
+                    </fieldset>
+                </div>
+                <input id="agendaSession" data-session-id type="hidden" value="">
+                <p class="session-unavailable" data-session-unavailable role="status" hidden>Não há sessões disponíveis para esta exposição.</p>
+                <p class="session-summary" data-session-summary aria-live="polite" hidden></p>
+            </div>
+            <button type="submit" data-session-submit disabled>Agendar</button>
         </form>
     </div>
 </section>
 
+<script id="sessionCatalog" type="application/json">@Html.Raw(sessionsJson)</script>
+
 <section id="lojinha" class="shop">
     <h2>Lojinha</h2>
-    <p class="academic-notice">Compra simulada para fins acadêmicos. Não informe dados reais de pagamento.</p>
     <div class="shop-grid">
         @foreach (var product in Model.Produtos)
         {

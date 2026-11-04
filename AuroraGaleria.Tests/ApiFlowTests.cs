@@ -17,8 +17,76 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("Caneca Aurora", html);
-        Assert.Contains("vagas", html);
-        Assert.DoesNotContain("ticketSession\" required disabled", html);
+        Assert.Contains("data-session-picker=\"ticket\"", html);
+        Assert.Contains("data-session-picker=\"agenda\"", html);
+        Assert.Contains("15 de maio a 30 de junho de 2027", html);
+        Assert.Contains("\"date\":\"15/05/2027\"", html);
+        Assert.Contains("\"id\":1", html);
+        Assert.DoesNotContain("projeto acadêmico", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("simulação acadêmica", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("fins acadêmicos", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("camila@g")]
+    [InlineData("camila@gmail")]
+    [InlineData("camila@")]
+    [InlineData("@gmail.com")]
+    [InlineData("camila@@gmail.com")]
+    [InlineData("camila @gmail.com")]
+    [InlineData("camila@gmail..com")]
+    [InlineData("camila@gmail.com.")]
+    [InlineData("camila@dominio.123")]
+    public async Task RegistrationRejectsInvalidEmailSentDirectly(string email)
+    {
+        using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var response = await SendJson(client, HttpMethod.Post, "/auth/register", new
+        {
+            name = "Camila", cpf = "90000000000", email, password = "senha-ficticia-123"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("Informe um e-mail válido, como nome@dominio.com.", await response.Content.ReadAsStringAsync());
+    }
+
+    [Theory]
+    [InlineData("camila@gmail.com", "90000000001")]
+    [InlineData("camila@outlook.com", "90000000002")]
+    [InlineData("camila@empresa.com.br", "90000000003")]
+    [InlineData("camila@instituicao.org", "90000000004")]
+    [InlineData("camila.souza+galeria@gmail.com", "90000000005")]
+    public async Task RegistrationAcceptsSupportedEmailFormats(string email, string cpf)
+    {
+        using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var response = await SendJson(client, HttpMethod.Post, "/auth/register", new
+        {
+            name = "Camila", cpf, email, password = "senha-ficticia-123"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RegistrationNormalizesEmailAndStillRejectsDuplicates()
+    {
+        using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var first = await SendJson(client, HttpMethod.Post, "/auth/register", new
+        {
+            name = "Pessoa Um", cpf = "90000000006", email = "Repetido@Empresa.com.br", password = "senha-ficticia-123"
+        });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        using var duplicate = await SendJson(client, HttpMethod.Post, "/auth/register", new
+        {
+            name = "Pessoa Dois", cpf = "90000000007", email = "  repetido@empresa.com.br  ", password = "senha-ficticia-123"
+        });
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+
+        using var login = await SendJson(client, HttpMethod.Post, "/auth/login", new
+        {
+            email = " REPETIDO@EMPRESA.COM.BR ", password = "senha-ficticia-123"
+        });
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
     }
 
     [Fact]
@@ -43,13 +111,47 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
 
         using var checkout = await SendJson(client, HttpMethod.Post, "/cart/checkout", new { requestId = Guid.NewGuid().ToString() });
         Assert.Equal(HttpStatusCode.OK, checkout.StatusCode);
+        var checkoutBody = await checkout.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Compra registrada com sucesso. Esta operação é uma simulação para fins acadêmicos. Nenhuma cobrança foi realizada.", checkoutBody.GetProperty("message").GetString());
         var history = await client.GetFromJsonAsync<JsonElement>("/user-actions/purchases");
         Assert.Equal(49.90m, history[0].GetProperty("unitPrice").GetDecimal());
-        Assert.Equal("Simulação acadêmica confirmada", history[0].GetProperty("situation").GetString());
+        Assert.Equal("Compra registrada", history[0].GetProperty("situation").GetString());
+
+        using var failedCheckout = await SendJson(client, HttpMethod.Post, "/cart/checkout", new { requestId = Guid.NewGuid().ToString() });
+        Assert.Equal(HttpStatusCode.BadRequest, failedCheckout.StatusCode);
+        Assert.DoesNotContain("Compra registrada com sucesso", await failedCheckout.Content.ReadAsStringAsync());
 
         using var logout = await SendJson(client, HttpMethod.Post, "/auth/logout", new { });
         Assert.Equal(HttpStatusCode.OK, logout.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/auth/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task ReservationResponsesUseSimpleMessagesWithoutAcademicNotice()
+    {
+        using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
+        await RegisterAndLogin(client, $"reservas-{Guid.NewGuid():N}@example.test", "90000000008");
+
+        using var ticket = await SendJson(client, HttpMethod.Post, "/user-actions/tickets", new
+        {
+            sessionId = 1, quantity = 1, requestId = Guid.NewGuid().ToString()
+        });
+        Assert.Equal(HttpStatusCode.OK, ticket.StatusCode);
+        var ticketBody = await ticket.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Ingresso reservado com sucesso.", ticketBody.GetProperty("message").GetString());
+
+        using var appointment = await SendJson(client, HttpMethod.Post, "/user-actions/appointments", new
+        {
+            sessionId = 2, requestId = Guid.NewGuid().ToString()
+        });
+        Assert.Equal(HttpStatusCode.OK, appointment.StatusCode);
+        var appointmentBody = await appointment.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Visita agendada com sucesso.", appointmentBody.GetProperty("message").GetString());
+
+        var reservationId = appointmentBody.GetProperty("id").GetInt32();
+        using var cancellation = await SendJson(client, HttpMethod.Delete, $"/user-actions/reservations/{reservationId}", new { });
+        Assert.Equal(HttpStatusCode.OK, cancellation.StatusCode);
+        Assert.Contains("Agendamento cancelado com sucesso.", await cancellation.Content.ReadAsStringAsync());
     }
 
     private static async Task RegisterAndLogin(HttpClient client, string email, string cpf)

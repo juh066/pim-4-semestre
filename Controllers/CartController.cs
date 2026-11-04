@@ -9,6 +9,8 @@ namespace AuroraGaleria.Controllers;
 [ApiController, Authorize, Route("cart")]
 public class CartController(ICartService cartService) : ControllerBase
 {
+    private const string CheckoutSuccessMessage = "Compra registrada com sucesso. Esta operação é uma simulação para fins acadêmicos. Nenhuma cobrança foi realizada.";
+
     [HttpGet]
     public async Task<IActionResult> Get() => Ok(await cartService.GetAsync(UserId));
 
@@ -24,7 +26,7 @@ public class CartController(ICartService cartService) : ControllerBase
     {
         var result = await cartService.CheckoutAsync(UserId, request);
         if (result.Success)
-            return Ok(new { result.Value!.Cart, result.Value.OrderId, result.Value.AlreadyProcessed, message = result.Message });
+            return Ok(new { result.Value!.Cart, result.Value.OrderId, result.Value.AlreadyProcessed, message = CheckoutSuccessMessage });
         if (result.Code == "price_changed")
             return Conflict(new { message = result.Message, priceChanged = true, cart = result.Value?.Cart });
         return Problem(result);

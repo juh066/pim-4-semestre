@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Antiforgery;
+using AuroraGaleria.Services;
 
 namespace AuroraGaleria.Controllers
 {
@@ -26,18 +27,23 @@ namespace AuroraGaleria.Controllers
         {
             try
             {
-                request.Email = request.Email.Trim().ToLowerInvariant();
+                request.Email = EmailAddressValidator.Normalize(request.Email);
                 request.Cpf = request.Cpf.Trim();
                 request.Name = request.Name.Trim();
 
+                if (!EmailAddressValidator.IsValid(request.Email))
+                {
+                    return BadRequest(new { message = EmailAddressValidator.ErrorMessage });
+                }
+
                 if (!ModelState.IsValid)
                 {
-                    return BadRequest(new { message = "Preencha nome, CPF, email e senha corretamente." });
+                    return BadRequest(new { message = "Preencha nome, CPF, e-mail e senha corretamente." });
                 }
 
                 if (await _db.Users.AnyAsync(user => user.Email == request.Email))
                 {
-                    return Conflict(new { message = "Este email já está cadastrado." });
+                    return Conflict(new { message = "Este e-mail já está cadastrado." });
                 }
 
                 if (await _db.Users.AnyAsync(user => user.Cpf == request.Cpf))
@@ -74,12 +80,12 @@ namespace AuroraGaleria.Controllers
         {
             try
             {
-                var email = request.Email.Trim().ToLowerInvariant();
+                var email = EmailAddressValidator.Normalize(request.Email);
                 var user = await _db.Users.SingleOrDefaultAsync(account => account.Email == email);
 
                 if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                 {
-                    return Unauthorized(new { message = "Email ou senha incorretos." });
+                    return Unauthorized(new { message = "E-mail ou senha incorretos." });
                 }
 
                 var claims = new List<Claim>

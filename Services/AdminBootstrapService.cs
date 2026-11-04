@@ -17,10 +17,14 @@ public class AdminBootstrapService(AppDbContext db)
             return ServiceResult<int>.Fail("invalid", "Nome e CPF válido são obrigatórios; a senha deve ter ao menos 12 caracteres.");
         }
 
-        email = email.Trim().ToLowerInvariant();
+        email = EmailAddressValidator.Normalize(email);
+        if (!EmailAddressValidator.IsValid(email))
+        {
+            return ServiceResult<int>.Fail("invalid_email", EmailAddressValidator.ErrorMessage);
+        }
         if (await db.Users.AnyAsync(item => item.Email == email || item.Cpf == cpf))
         {
-            return ServiceResult<int>.Fail("duplicate", "Email ou CPF já cadastrado.");
+            return ServiceResult<int>.Fail("duplicate", "E-mail ou CPF já cadastrado.");
         }
 
         var admin = new User
