@@ -17,6 +17,10 @@ namespace AuroraGaleria.Models
         [Required]
         [MinLength(6, ErrorMessage = "A senha deve ter pelo menos 6 caracteres.")]
         public string Password { get; set; } = string.Empty;
+
+        public bool RegisterAsAdministrator { get; set; }
+
+        public string? AdminAccessCode { get; set; }
     }
 
     public class LoginRequest

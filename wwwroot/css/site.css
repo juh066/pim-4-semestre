@@ -495,6 +495,74 @@ header {
     font-weight: 600;
 }
 
+.admin-registration-option {
+    margin: 4px 0 2px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(28,28,30,0.1);
+}
+
+.admin-registration-toggle {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0;
+    font-size: 0.92rem;
+    cursor: pointer;
+}
+
+.admin-registration-toggle input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    padding: 0;
+    accent-color: #D4AF37;
+}
+
+.admin-registration-fields {
+    display: grid;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.admin-registration-fields[hidden] {
+    display: none;
+}
+
+.admin-registration-fields > label,
+.admin-registration-fields > .form-field-help {
+    display: block;
+    margin: 0;
+}
+
+.admin-registration-fields > label {
+    line-height: 1.35;
+}
+
+.admin-access-code-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.admin-access-code-row input {
+    min-width: 0;
+}
+
+.admin-access-code-row .secondary-inline-button {
+    width: auto;
+    padding: 10px 12px;
+    border: 1px solid rgba(28,28,30,0.22);
+    background: #F5F0E8;
+    color: #1C1C1E;
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+.admin-access-code-row .secondary-inline-button:hover {
+    background: #EDE4D5;
+}
+
 .logged-in-actions {
     display: block;
     margin-top: 18px;
@@ -1202,138 +1270,152 @@ footer p {
     top: 80px;
     right: 20px;
     z-index: 9999;
-    max-width: 400px;
+    width: min(420px, calc(100vw - 40px));
+    pointer-events: none;
 }
 
 .notification-banner {
     display: flex;
-    align-items: center;
-    gap: 15px;
-    padding: 16px 20px;
-    margin-bottom: 12px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    animation: slideIn 0.4s ease-out;
-    min-height: 60px;
+    align-items: flex-start;
+    gap: 14px;
+    min-height: 56px;
+    margin-bottom: 10px;
+    padding: 15px 16px 15px 18px;
+    border: 1px solid rgba(28, 28, 30, 0.12);
+    border-left-width: 4px;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(55, 45, 31, 0.09);
+    font-family: inherit;
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 180ms ease, transform 180ms ease;
+    pointer-events: auto;
 }
 
-@keyframes slideIn {
-    from {
-        transform: translateX(420px);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
+.notification-banner.is-closing {
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
 }
 
-@keyframes slideOut {
-    from {
-        transform: translateX(0);
-        opacity: 1;
-    }
-    to {
-        transform: translateX(420px);
-        opacity: 0;
-    }
+.notification-banner.is-entering {
+    opacity: 0;
+    transform: translateY(-6px);
 }
 
-.notification-banner.hide {
-    animation: slideOut 0.4s ease-out forwards;
-}
-
-/* Success notification */
 .notification-banner.success {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    border-left: 5px solid #047857;
+    background: #EDF2E8;
+    color: #35452F;
+    border-color: #CAD4C2;
+    border-left-color: #75866A;
 }
 
-.notification-banner.success::before {
-    content: "✓";
-    font-size: 24px;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-
-/* Error notification */
 .notification-banner.error {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    color: white;
-    border-left: 5px solid #b91c1c;
+    background: #F7ECE8;
+    color: #743E35;
+    border-color: #E3C9C1;
+    border-left-color: #B77665;
 }
 
-.notification-banner.error::before {
-    content: "×";
-    font-size: 24px;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-
-/* Warning notification */
 .notification-banner.warning {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: white;
-    border-left: 5px solid #b45309;
+    background: #F8F1DF;
+    color: #695323;
+    border-color: #E4D4A8;
+    border-left-color: #B79238;
 }
 
-.notification-banner.warning::before {
-    content: "!";
-    font-size: 24px;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-
-/* Info notification */
 .notification-banner.info {
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-    color: white;
-    border-left: 5px solid #1e40af;
-}
-
-.notification-banner.info::before {
-    content: "ℹ";
-    font-size: 24px;
-    font-weight: bold;
-    flex-shrink: 0;
+    background: #F5F0E8;
+    color: #403B33;
+    border-color: #DDD3C5;
+    border-left-color: #AA8A3A;
 }
 
 .notification-content {
     flex: 1;
-    font-size: 14px;
+    min-width: 0;
+    padding-top: 2px;
+    font-size: 0.9rem;
     font-weight: 500;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
 }
 
-.notification-close {
+.notification-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+}
+
+.notification-close,
+.notification-action {
     background: none;
     border: none;
     color: inherit;
     cursor: pointer;
-    font-size: 20px;
-    flex-shrink: 0;
-    padding: 0;
-    opacity: 0.8;
-    transition: opacity 0.2s;
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 36px;
+    margin: -6px -7px -6px 0;
+    padding: 7px 9px;
+    border-radius: 5px;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 500;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    opacity: 0.82;
+    transition: background-color 150ms ease, opacity 150ms ease;
 }
 
-.notification-close:hover {
+.notification-action {
+    color: #6F571D;
+    font-weight: 600;
+}
+
+.notification-close:hover,
+.notification-action:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.45);
+}
+
+.notification-close:focus-visible,
+.notification-action:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 1px;
     opacity: 1;
 }
 
 @media(max-width: 600px) {
     .notification-container {
-        left: 10px;
-        right: 10px;
-        max-width: none;
+        top: 70px;
+        left: 12px;
+        right: 12px;
+        width: auto;
     }
 
     .notification-banner {
-        padding: 12px 16px;
+        gap: 10px;
+        padding: 13px 12px 13px 14px;
+        flex-wrap: wrap;
     }
 
     .notification-content {
-        font-size: 13px;
+        font-size: 0.86rem;
+    }
+
+    .notification-actions {
+        margin-left: auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .notification-banner,
+    .notification-close,
+    .notification-action {
+        transition-duration: 0.01ms;
     }
 }
 

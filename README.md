@@ -24,9 +24,9 @@ dotnet run
 
 O inicializador versionado em `Data/DatabaseInitializer.cs` altera o esquema sem apagar ou recriar o banco. Ele mantém tabelas legadas, acrescenta papéis, estado ativo, sessões, reservas, pedidos, itens históricos e idempotência. Registros legados que não podem ser relacionados com segurança a uma sessão ou produto são preservados e anotados em `data_migration_issues`; nenhuma associação é inventada.
 
-## Primeiro administrador
+## Administrador
 
-O cadastro público sempre cria o papel `Visitor`. O primeiro administrador só pode ser criado pelo comando local abaixo, e somente enquanto nenhum administrador existir. Não há senha fixa no código.
+O cadastro comum sempre cria o papel `Visitor`. Para uma instalação normal, o primeiro administrador deve ser criado pelo comando local abaixo, e somente enquanto nenhum administrador existir. Não há senha fixa nesse fluxo.
 
 ```bash
 AURORA_ADMIN_NAME="Administrador" \
@@ -37,6 +37,22 @@ dotnet run -- --create-admin
 ```
 
 Use dados fictícios. Depois do login, o administrador acessa `/admin` para cadastrar, editar, desativar ou reativar exposições e produtos, criar sessões e ativá-las ou desativá-las. Desativar preserva o histórico. O comando inicial é bloqueado após a criação do primeiro administrador.
+
+### Cadastro administrativo para demonstração
+
+Em desenvolvimento, a seção `AcademicDemo` de `appsettings.Development.json` habilita uma opção discreta no cadastro. Ao selecionar **Cadastrar como administrador**, use o código de demonstração `123`. O código é validado no servidor e não é salvo na conta nem registrado em logs.
+
+O recurso fica desativado por padrão em `appsettings.json`. Para ativá-lo sem editar arquivos, use configuração de ambiente antes de iniciar a aplicação:
+
+```bash
+AcademicDemo__EnableAdminRegistration=true \
+AcademicDemo__AdminRegistrationCode=123 \
+dotnet run
+```
+
+Para desativar explicitamente, defina `AcademicDemo__EnableAdminRegistration=false`. Quando desativado, a opção não aparece e o servidor rejeita tentativas de cadastro administrativo, mesmo que o navegador envie diretamente o papel, o código ou um parâmetro de ativação.
+
+O código `123` existe somente para facilitar a apresentação acadêmica. Ele **não é uma proteção adequada para produção**. Em qualquer ambiente real, mantenha esse recurso desativado e use um processo seguro de provisionamento administrativo.
 
 ## Regras implementadas
 

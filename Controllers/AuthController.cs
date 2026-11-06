@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Antiforgery;
 using AuroraGaleria.Services;
+using AuroraGaleria.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace AuroraGaleria.Controllers
 {
@@ -16,10 +18,12 @@ namespace AuroraGaleria.Controllers
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _db;
+        private readonly AcademicDemoOptions _academicDemo;
 
-        public AuthController(AppDbContext db)
+        public AuthController(AppDbContext db, IOptions<AcademicDemoOptions> academicDemo)
         {
             _db = db;
+            _academicDemo = academicDemo.Value;
         }
 
         [HttpPost("register")]
@@ -41,6 +45,29 @@ namespace AuroraGaleria.Controllers
                     return BadRequest(new { message = "Preencha nome, CPF, e-mail e senha corretamente." });
                 }
 
+                var role = UserRoles.Visitor;
+                if (request.RegisterAsAdministrator)
+                {
+                    if (!_academicDemo.EnableAdminRegistration ||
+                        string.IsNullOrEmpty(_academicDemo.AdminRegistrationCode))
+                    {
+                        return BadRequest(new
+                        {
+                            message = "O cadastro administrativo de demonstração não está disponível."
+                        });
+                    }
+
+                    if (!string.Equals(
+                            request.AdminAccessCode,
+                            _academicDemo.AdminRegistrationCode,
+                            StringComparison.Ordinal))
+                    {
+                        return BadRequest(new { message = "Código de acesso administrativo inválido." });
+                    }
+
+                    role = UserRoles.Administrator;
+                }
+
                 if (await _db.Users.AnyAsync(user => user.Email == request.Email))
                 {
                     return Conflict(new { message = "Este e-mail já está cadastrado." });
@@ -57,14 +84,18 @@ namespace AuroraGaleria.Controllers
                     Cpf = request.Cpf,
                     Email = request.Email,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                    Role = UserRoles.Visitor,
+                    Role = role,
                     CreatedAt = DateTime.UtcNow
                 };
 
                 _db.Users.Add(user);
                 await _db.SaveChangesAsync();
 
-                return Ok(new { message = "Cadastro concluído com sucesso." });
+                var message = role == UserRoles.Administrator
+                    ? "Cadastro de administrador concluído. Faça login para continuar."
+                    : "Cadastro de visitante concluído. Faça login para continuar.";
+
+                return Ok(new { message, role });
             }
             catch (Exception)
             {

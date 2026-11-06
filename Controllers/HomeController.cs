@@ -7,6 +7,31 @@ namespace AuroraGaleria.Controllers
 {
     public class HomeController(AppDbContext db) : Controller
     {
+        [HttpGet("/sessions/{id:int}/availability")]
+        public async Task<IActionResult> SessionAvailability(int id)
+        {
+            var today = DateTime.Today;
+            var session = await db.VisitSessions.AsNoTracking()
+                .Include(item => item.Exposure)
+                .SingleOrDefaultAsync(item => item.Id == id);
+
+            var isAvailable = session is not null &&
+                session.IsActive &&
+                session.Exposure is not null &&
+                session.Exposure.Ativa &&
+                session.VisitDate >= today &&
+                session.VisitDate >= session.Exposure.Inicio &&
+                session.VisitDate <= session.Exposure.Fim &&
+                session.ReservedQuantity < session.Capacity;
+
+            return Ok(new
+            {
+                sessionId = id,
+                isAvailable,
+                available = isAvailable ? session!.Capacity - session.ReservedQuantity : 0
+            });
+        }
+
         public async Task<IActionResult> Index()
         {
             var today = DateTime.Today;

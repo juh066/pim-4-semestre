@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AuroraGaleria.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AuroraGaleria.Tests;
 
@@ -96,6 +99,47 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
         await RegisterAndLogin(client, $"visitor-{Guid.NewGuid():N}@example.test", "12122222222");
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/admin")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/user-actions/analytics")).StatusCode);
+    }
+
+    [Fact]
+    public async Task AnonymousReservationEndpointsStillRequireAuthentication()
+    {
+        using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
+
+        using var ticket = await SendJson(client, HttpMethod.Post, "/user-actions/tickets", new
+        {
+            sessionId = 1, quantity = 1, requestId = Guid.NewGuid().ToString()
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, ticket.StatusCode);
+
+        using var appointment = await SendJson(client, HttpMethod.Post, "/user-actions/appointments", new
+        {
+            sessionId = 1, requestId = Guid.NewGuid().ToString()
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, appointment.StatusCode);
+    }
+
+    [Fact]
+    public async Task PublicAvailabilityCheckReflectsAFullSession()
+    {
+        using var factory = new AuroraWebFactory();
+        using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+
+        var available = await client.GetFromJsonAsync<JsonElement>("/sessions/1/availability");
+        Assert.True(available.GetProperty("isAvailable").GetBoolean());
+        Assert.True(available.GetProperty("available").GetInt32() > 0);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var session = await db.VisitSessions.SingleAsync(item => item.Id == 1);
+            session.ReservedQuantity = session.Capacity;
+            await db.SaveChangesAsync();
+        }
+
+        var full = await client.GetFromJsonAsync<JsonElement>("/sessions/1/availability");
+        Assert.False(full.GetProperty("isAvailable").GetBoolean());
+        Assert.Equal(0, full.GetProperty("available").GetInt32());
     }
 
     [Fact]

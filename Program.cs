@@ -1,4 +1,5 @@
 using AuroraGaleria.Data;
+using AuroraGaleria.Configuration;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore; 
@@ -6,6 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 using AuroraGaleria.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<AcademicDemoOptions>(
+    builder.Configuration.GetSection(AcademicDemoOptions.SectionName));
 
 builder.Services.AddControllersWithViews(options =>
     options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute()));

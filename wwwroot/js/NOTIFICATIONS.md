@@ -1,154 +1,44 @@
-# Sistema de Notificações - AuroraGaleria
+# Notificações da Galeria Aurora
 
-## Visão Geral
-
-O sistema de notificações foi implementado para fornecer feedback visual ao usuário em ações importantes como cadastro, login, compra de ingressos e agendamento de visitas.
-
-## Características
-
-✅ **Animações suaves** - Transições deslizantes e elegantes  
-✅ **Responsivo** - Funciona em qualquer tamanho de tela  
-✅ **Múltiplos tipos** - Success, Error, Warning, Info  
-✅ **Auto-fechamento** - Desaparece automaticamente após timeout  
-✅ **Fechamento manual** - Botão X para fechar manualmente  
-✅ **Posicionamento fixo** - Sempre visível, aparece no topo direito  
-
-## Tipos de Notificação
-
-### 🟢 Success (Verde)
-Usado para ações bem-sucedidas.
-```javascript
-notifications.success('Cadastro concluído com sucesso!');
-```
-
-### 🔴 Error (Vermelho)
-Usado para erros e falhas.
-```javascript
-notifications.error('Erro ao realizar o cadastro!');
-```
-
-### 🟡 Warning (Amarelo)
-Usado para alertas e avisos.
-```javascript
-notifications.warning('Verifique seus dados!');
-```
-
-### 🔵 Info (Azul)
-Usado para informações gerais.
-```javascript
-notifications.info('Processando sua solicitação...');
-```
-
-## Uso
-
-### Uso Básico
-
-```javascript
-// Notificação de sucesso que desaparece em 4 segundos (padrão)
-notifications.success('Operação realizada com sucesso!');
-
-// Notificação que não desaparece automaticamente
-notifications.show('Mensagem', 'info', 0);
-
-// Notificação customizada com duração
-notifications.show('Mensagem customizada', 'success', 6000);
-```
-
-### Em Formulários
-
-As notificações já estão configuradas para os seguintes formulários:
-
-1. **Cadastro** - Exibe "✓ Cadastro concluído com sucesso!"
-2. **Login** - Exibe "✓ Login concluído com sucesso!"
-3. **Compra de Ingressos** - Exibe "✓ Ingresso comprado com sucesso!"
-4. **Agendamento de Visita** - Exibe "✓ Visita agendada com sucesso!"
-5. **Compra de Produtos** - Exibe "✓ [Nome do Produto] adicionado ao carrinho!"
-
-### Usar em Controladores (C#)
-
-Para passar mensagens do servidor:
-
-```csharp
-// No Controller
-ViewBag.Notification = new {
-    Message = "Cadastro realizado com sucesso!",
-    Type = "success" // success, error, warning, info
-};
-```
-
-```html
-<!-- No View -->
-@if (ViewBag.Notification != null) {
-    <script>
-        notifications.@ViewBag.Notification.Type('@ViewBag.Notification.Message');
-    </script>
-}
-```
-
-## Estrutura HTML
-
-O container de notificações está localizado em `_Layout.cshtml`:
+O componente compartilhado `Avisos`, em `site.js`, apresenta o resultado das operações de cadastro, login, carrinho, ingressos, visitas e cancelamentos. Todas as telas usam o mesmo container definido em `_Layout.cshtml`:
 
 ```html
 <div id="notificationContainer" class="notification-container"></div>
 ```
 
-## Estilos CSS
-
-Os estilos estão em `site.css`:
-
-- `.notification-container` - Posicionamento e layout do container
-- `.notification-banner` - Estilos gerais do banner
-- `.notification-banner.success` - Estilos para notificação de sucesso
-- `.notification-banner.error` - Estilos para notificação de erro
-- `.notification-banner.warning` - Estilos para notificação de aviso
-- `.notification-banner.info` - Estilos para notificação de informação
-- Animações: `slideIn` e `slideOut`
-
-## Duração Padrão
-
-- Success: 4000ms (4 segundos)
-- Error: 5000ms (5 segundos)
-- Warning: 4000ms (4 segundos)
-- Info: 3000ms (3 segundos)
-
-## Customização
-
-Para alterar as durações padrão, edite o arquivo `site.js`:
+## Tipos
 
 ```javascript
-success(message, duration = 4000) { // Altere 4000 para o valor desejado
-    return this.show(message, 'success', duration);
-}
+avisos.success('Ingresso reservado.');
+avisos.error('Não há vagas suficientes nesta sessão.');
+avisos.warning('O preço mudou. Revise o carrinho.');
+avisos.info('Você saiu da sua conta.');
 ```
 
-Para alterar cores e estilos, edite as classes CSS em `site.css`:
+- `success`: fundo verde-sálvia claro e `role="status"`.
+- `error`: fundo terracota claro, `role="alert"` e permanência até fechamento manual.
+- `warning`: creme com detalhe dourado e duração padrão de 7 segundos.
+- `info`: creme neutro com detalhe dourado.
 
-```css
-.notification-banner.success {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    /* Altere as cores aqui */
-}
+Sucessos e informações desaparecem após aproximadamente 5 segundos. O temporizador pausa enquanto o ponteiro ou o foco estiver na notificação. Mensagens repetidas do mesmo tipo não são empilhadas.
+
+## Fechamento e acessibilidade
+
+O controle textual **Fechar** é um botão acessível por teclado. A exibição do aviso não desloca o foco. Não há ícones decorativos: o texto deve sempre explicar claramente o resultado. Erros devem preservar a mensagem específica recebida do servidor quando disponível.
+
+As transições são curtas e ficam praticamente instantâneas quando o navegador indica `prefers-reduced-motion: reduce`.
+
+## Responsividade e estilos
+
+Os estilos ficam em `site.css`, nas classes `.notification-container`, `.notification-banner`, suas variações por tipo, `.notification-content` e `.notification-close`.
+
+No computador, o componente permanece no canto superior direito. Em telas de até 600 px, respeita margens laterais de 12 px e permite quebra de linha, inclusive para a confirmação acadêmica mais longa do checkout.
+
+## Duração personalizada
+
+Quando uma duração diferente for realmente necessária, use `show` com milissegundos. O valor `0` mantém a mensagem até o fechamento:
+
+```javascript
+avisos.show('Mensagem informativa.', 'info', 6000);
+avisos.show('Mensagem persistente.', 'error', 0);
 ```
-
-## Responsividade
-
-O sistema é totalmente responsivo:
-- **Desktop**: Notificação aparece no canto superior direito
-- **Mobile**: Notificação se adapta ao tamanho da tela (margem esquerda e direita)
-
-## Troubleshooting
-
-**Notificação não aparece?**
-- Verifique se o `#notificationContainer` existe no HTML
-- Verifique se o `site.js` está carregado antes de usar
-- Abra o console (F12) para verificar erros
-
-**Notificação não fecha?**
-- Se `duration = 0`, a notificação não fecha automaticamente
-- Clique no botão X para fechar manualmente
-- Ou defina uma duração: `notifications.success('Msg', 3000)`
-
-**Estilos não aparecem?**
-- Verifique se o `site.css` está sendo carregado
-- Limpe o cache do navegador (Ctrl + Shift + Delete)

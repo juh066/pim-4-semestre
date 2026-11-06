@@ -1,27 +1,123 @@
 class Avisos {
-    constructor() { this.container = document.getElementById('notificationContainer'); }
-    show(message, type = 'info', duration = 4000) {
+    constructor() {
+        this.container = document.getElementById('notificationContainer');
+        this.active = new Map();
+        this.home = this.container ? {
+            parent: this.container.parentNode,
+            nextSibling: this.container.nextSibling
+        } : null;
+        document.querySelectorAll('.modal').forEach(modal =>
+            modal.addEventListener('hide.bs.modal', () => this.restoreContainer()));
+    }
+
+    restoreContainer() {
+        if (!this.container || !this.home?.parent || this.container.parentNode === this.home.parent) return;
+        this.home.parent.insertBefore(this.container, this.home.nextSibling);
+    }
+
+    show(message, type = 'info', duration = 5000, action = null) {
         if (!this.container) return;
+        const text = String(message || '').trim();
+        if (!text) return;
+
+        const key = `${type}:${text}`;
+        const duplicate = this.active.get(key);
+        if (duplicate?.isConnected) return duplicate;
+
+        const activeModal = document.querySelector('.modal.show');
+        if (activeModal && !activeModal.contains(this.container)) activeModal.appendChild(this.container);
+
         const banner = document.createElement('div');
-        banner.className = `notification-banner ${type}`;
+        banner.className = `notification-banner ${type} is-entering`;
         banner.setAttribute('role', type === 'error' ? 'alert' : 'status');
+        banner.setAttribute('aria-atomic', 'true');
+
         const content = document.createElement('div');
         content.className = 'notification-content';
-        content.textContent = String(message || '');
+        content.textContent = text;
+
         const close = document.createElement('button');
-        close.type = 'button'; close.className = 'notification-close'; close.textContent = '×'; close.setAttribute('aria-label', 'Fechar aviso');
-        close.addEventListener('click', () => banner.remove());
-        banner.append(content, close); this.container.appendChild(banner);
-        if (duration) setTimeout(() => banner.remove(), duration);
+        close.type = 'button';
+        close.className = 'notification-close';
+        close.textContent = 'Fechar';
+        close.setAttribute('aria-label', 'Fechar notificação');
+
+        const actions = document.createElement('div');
+        actions.className = 'notification-actions';
+
+        let actionButton = null;
+        if (action?.label && typeof action.onClick === 'function') {
+            actionButton = document.createElement('button');
+            actionButton.type = 'button';
+            actionButton.className = 'notification-action';
+            actionButton.textContent = action.label;
+        }
+
+        let timer = null;
+        let remaining = duration;
+        let startedAt = 0;
+        let pointerPaused = false;
+        let focusPaused = false;
+
+        const remove = () => {
+            if (!banner.isConnected || banner.classList.contains('is-closing')) return;
+            if (timer) clearTimeout(timer);
+            this.active.delete(key);
+            banner.classList.add('is-closing');
+            banner.addEventListener('transitionend', () => banner.remove(), { once: true });
+            setTimeout(() => banner.remove(), 250);
+        };
+
+        const startTimer = () => {
+            if (!remaining || pointerPaused || focusPaused) return;
+            startedAt = performance.now();
+            timer = setTimeout(remove, remaining);
+        };
+
+        const pauseTimer = () => {
+            if (!timer) return;
+            clearTimeout(timer);
+            timer = null;
+            remaining = Math.max(0, remaining - (performance.now() - startedAt));
+        };
+
+        const resumeTimer = () => {
+            if (!pointerPaused && !focusPaused && remaining > 0) startTimer();
+        };
+
+        close.addEventListener('click', remove);
+        actionButton?.addEventListener('click', () => {
+            try { action.onClick(); }
+            finally { remove(); }
+        });
+        banner.addEventListener('pointerenter', () => { pointerPaused = true; pauseTimer(); });
+        banner.addEventListener('pointerleave', () => { pointerPaused = false; resumeTimer(); });
+        banner.addEventListener('focusin', () => { focusPaused = true; pauseTimer(); });
+        banner.addEventListener('focusout', event => {
+            if (banner.contains(event.relatedTarget)) return;
+            focusPaused = false;
+            resumeTimer();
+        });
+
+        if (actionButton) actions.appendChild(actionButton);
+        actions.appendChild(close);
+        banner.append(content, actions);
+        this.container.appendChild(banner);
+        this.active.set(key, banner);
+        requestAnimationFrame(() => banner.classList.remove('is-entering'));
+        startTimer();
+        return banner;
     }
-    success(message) { this.show(message, 'success'); }
-    error(message) { this.show(message, 'error', 6000); }
-    warning(message) { this.show(message, 'warning', 6000); }
-    info(message) { this.show(message, 'info'); }
+    success(message) { return this.show(message, 'success', 5000); }
+    error(message, action = null) { return this.show(message, 'error', 0, action); }
+    warning(message) { return this.show(message, 'warning', 7000); }
+    info(message) { return this.show(message, 'info', 5000); }
 }
 
 const avisos = new Avisos();
 let csrfToken = null;
+let pendingAuthIntent = null;
+const sessionPickers = new Map();
 
 function requestId() {
     return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -208,10 +304,55 @@ class SessionPicker {
         }
         if (this.submit) this.submit.disabled = !this.sessionId.value || !validQuantity;
     }
+
+    async refreshSelectedSession() {
+        const selectedId = Number(this.sessionId.value);
+        if (!selectedId) return true;
+
+        let response;
+        try {
+            response = await fetch(`/sessions/${selectedId}/availability`, { credentials: 'same-origin' });
+        } catch {
+            avisos.error('Não foi possível atualizar a disponibilidade. Tente novamente antes de confirmar.');
+            return false;
+        }
+
+        if (!response.ok) {
+            avisos.error('Não foi possível atualizar a disponibilidade. Tente novamente antes de confirmar.');
+            return false;
+        }
+
+        const result = await response.json();
+        const session = this.sessions.find(item => Number(item.id) === selectedId);
+        if (session) session.available = Number(result.available || 0);
+
+        if (!result.isAvailable || Number(result.available) < 1) {
+            this.clearTime();
+            this.showUnavailable('A sessão selecionada não está mais disponível. Escolha outro horário.');
+            return false;
+        }
+
+        const available = Number(result.available);
+        this.sessionId.dataset.available = available;
+        const selectedInput = this.times.querySelector(`input[value="${selectedId}"]`);
+        const availability = selectedInput?.nextElementSibling?.querySelector('small');
+        if (availability) availability.textContent = `${available} ${available === 1 ? 'vaga' : 'vagas'}`;
+        if (this.quantity) this.quantity.max = Math.min(20, available);
+        this.updateSubmit();
+        return true;
+    }
+
+    focusForConfirmation() {
+        this.form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const selectedTime = this.times.querySelector('input:checked');
+        const target = this.submit && !this.submit.disabled ? this.submit : selectedTime || this.exposure;
+        target?.focus({ preventScroll: true });
+    }
 }
 
 class PerfilUsuario {
     constructor() {
+        this.authState = 'unknown';
         this.button = document.getElementById('userProfileIcon'); this.name = document.getElementById('userName');
         this.initials = document.getElementById('userInitials'); this.icon = document.getElementById('userIconSvg');
         this.logged = document.getElementById('loggedInActions'); this.authGrid = document.querySelector('.auth-modal-grid');
@@ -227,6 +368,7 @@ class PerfilUsuario {
         } catch { this.clear(); }
     }
     display(user) {
+        this.authState = 'authenticated';
         const name = user.name || '';
         this.button?.classList.add('is-logged-in');
         if (this.button) { this.button.setAttribute('aria-label', `Usuário conectado: ${name}`); this.button.title = name; }
@@ -242,10 +384,12 @@ class PerfilUsuario {
     }
     async logout() {
         const response = await postJson('/auth/logout');
-        if (response.ok) { csrfToken = null; this.clear(); avisos.info('Você foi desconectado.'); }
+        if (response.ok) { csrfToken = null; this.clear(); avisos.info('Você saiu da sua conta.'); }
     }
     clear() {
+        this.authState = 'guest';
         this.button?.classList.remove('is-logged-in');
+        if (this.button) { this.button.setAttribute('aria-label', 'Abrir login e cadastro'); this.button.title = 'Login e Cadastro'; }
         if (this.name) this.name.textContent = ''; if (this.initials) this.initials.textContent = ''; if (this.icon) this.icon.style.display = '';
         if (this.logged) this.logged.hidden = true; if (this.authGrid) this.authGrid.hidden = false;
         ['analyticsButton', 'adminButton'].forEach(id => { const element = document.getElementById(id); if (element) element.hidden = true; });
@@ -279,7 +423,7 @@ class RegistrosUsuario {
                 const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'user-record-cancel'; cancel.textContent = 'Cancelar';
                 cancel.addEventListener('click', async () => {
                     cancel.disabled = true; const result = await apiFetch(`/user-actions/reservations/${item.id}`, { method: 'DELETE' });
-                    if (result.ok) { avisos.success(await readApiMessage(result, 'Agendamento cancelado com sucesso.')); await this.loadReservations(type); }
+                    if (result.ok) { avisos.success(type === 'tickets' ? 'Ingresso cancelado.' : 'Agendamento cancelado.'); await this.loadReservations(type); }
                     else { avisos.error(await readApiMessage(result, 'Não foi possível cancelar.')); cancel.disabled = false; }
                 }); row.appendChild(cancel);
             }
@@ -317,7 +461,7 @@ class Carrinho {
         const response = await postJson('/cart/items', { productId, quantity: 1, requestId: requestId() });
         if (response.status === 401) { avisos.error('Faça login para adicionar produtos.'); bootstrap.Modal.getOrCreateInstance(document.getElementById('authModal')).show(); return; }
         if (!response.ok) return avisos.error(await readApiMessage(response, 'Não foi possível adicionar o produto.'));
-        this.render(await response.json()); this.open();
+        this.render(await response.json()); this.open(); avisos.success('Produto adicionado ao carrinho.');
     }
     async completeCheckout() {
         const response = await postJson('/cart/checkout', { requestId: requestId() });
@@ -331,7 +475,8 @@ class Carrinho {
     }
     async remove(itemId) {
         const response = await apiFetch(`/cart/items/${itemId}`, { method: 'DELETE' });
-        if (response.ok) this.render(await response.json()); else avisos.error(await readApiMessage(response, 'Não foi possível remover o item.'));
+        if (response.ok) { this.render(await response.json()); avisos.success('Produto removido do carrinho.'); }
+        else avisos.error(await readApiMessage(response, 'Não foi possível remover o item.'));
     }
     open() { this.previousFocus = document.activeElement; this.drawer?.classList.add('is-open'); this.drawer?.setAttribute('aria-hidden', 'false'); if (this.backdrop) { this.backdrop.hidden = false; this.backdrop.classList.add('is-open'); } this.closeButton?.focus(); this.load(); }
     close() { this.drawer?.classList.remove('is-open'); this.drawer?.setAttribute('aria-hidden', 'true'); if (this.backdrop) { this.backdrop.classList.remove('is-open'); this.backdrop.hidden = true; } this.previousFocus?.focus?.(); }
@@ -355,11 +500,80 @@ class Carrinho {
     }
 }
 
+function openAuthentication(intentType, form, sessionExpired = false) {
+    pendingAuthIntent = {
+        type: intentType,
+        form,
+        picker: sessionPickers.get(intentType)
+    };
+
+    const message = sessionExpired
+        ? 'Sua sessão expirou. Entre novamente para continuar'
+        : intentType === 'ticket'
+            ? 'Entre na sua conta para reservar ingressos.'
+            : 'Entre na sua conta para agendar uma visita.';
+
+    avisos.error(message, {
+        label: 'Entrar',
+        onClick: () => {
+            const modalElement = document.getElementById('authModal');
+            if (!modalElement) return;
+            modalElement.addEventListener('shown.bs.modal', () =>
+                document.getElementById('loginEmail')?.focus(), { once: true });
+            bootstrap.Modal.getOrCreateInstance(modalElement).show();
+        }
+    });
+}
+
+async function returnToPendingOperation(intent) {
+    if (!intent?.form?.isConnected) return;
+    await intent.picker?.refreshSelectedSession();
+    intent.picker?.focusForConfirmation();
+}
+
+async function submitSessionOperation({ type, form, url, body, successMessage, fallbackError }) {
+    const profile = window.perfilUsuario;
+    if (profile?.authState === 'guest') {
+        openAuthentication(type, form);
+        return;
+    }
+
+    const picker = sessionPickers.get(type);
+    const submit = form.querySelector('[data-session-submit]');
+    if (submit) submit.disabled = true;
+
+    try {
+        const response = await postJson(url, body());
+        if (response.status === 401) {
+            const sessionExpired = profile?.authState === 'authenticated';
+            csrfToken = null;
+            profile?.clear();
+            openAuthentication(type, form, sessionExpired);
+            return;
+        }
+
+        if (!response.ok) {
+            avisos.error(await readApiMessage(response, fallbackError));
+            return;
+        }
+
+        avisos.success(successMessage);
+        window.registrosUsuario?.load();
+        await picker?.refreshSelectedSession();
+    } catch {
+        avisos.error('Não foi possível conectar ao servidor. Tente novamente.');
+    } finally {
+        picker?.updateSubmit();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     window.registrosUsuario = new RegistrosUsuario(); window.carrinho = new Carrinho(); window.perfilUsuario = new PerfilUsuario();
     const catalogElement = document.getElementById('sessionCatalog');
     const sessionCatalog = catalogElement ? JSON.parse(catalogElement.textContent || '[]') : [];
-    document.querySelectorAll('[data-session-picker]').forEach(root => new SessionPicker(root, sessionCatalog));
+    document.querySelectorAll('[data-session-picker]').forEach(root => {
+        sessionPickers.set(root.dataset.sessionPicker, new SessionPicker(root, sessionCatalog));
+    });
 
     document.getElementById('paymentForm')?.addEventListener('submit', async event => {
         event.preventDefault(); const button = document.getElementById('paymentConfirmButton'); button.disabled = true;
@@ -374,30 +588,94 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     registerEmail?.addEventListener('blur', () => { if (registerEmail.value) validateRegistrationEmail(registerEmail); });
 
+    const registerAsAdministrator = document.getElementById('registerAsAdministrator');
+    const adminRegistrationFields = document.getElementById('adminRegistrationFields');
+    const adminAccessCode = document.getElementById('adminAccessCode');
+    const toggleAdminAccessCode = document.getElementById('toggleAdminAccessCode');
+
+    const resetAdminCodeVisibility = () => {
+        if (!adminAccessCode || !toggleAdminAccessCode) return;
+        adminAccessCode.type = 'password';
+        toggleAdminAccessCode.textContent = 'Mostrar código';
+        toggleAdminAccessCode.setAttribute('aria-pressed', 'false');
+    };
+
+    registerAsAdministrator?.addEventListener('change', () => {
+        const enabled = registerAsAdministrator.checked;
+        adminRegistrationFields.hidden = !enabled;
+        adminAccessCode.required = enabled;
+        if (!enabled) {
+            adminAccessCode.value = '';
+            resetAdminCodeVisibility();
+        } else {
+            adminAccessCode.focus({ preventScroll: true });
+        }
+    });
+
+    toggleAdminAccessCode?.addEventListener('click', () => {
+        const showing = adminAccessCode.type === 'text';
+        adminAccessCode.type = showing ? 'password' : 'text';
+        toggleAdminAccessCode.textContent = showing ? 'Mostrar código' : 'Ocultar código';
+        toggleAdminAccessCode.setAttribute('aria-pressed', String(!showing));
+        adminAccessCode.focus({ preventScroll: true });
+    });
+
     document.getElementById('registerForm')?.addEventListener('submit', async event => {
         event.preventDefault();
         registerEmail.value = registerEmail.value.trim();
         if (!validateRegistrationEmail(registerEmail)) { registerEmail.reportValidity(); registerEmail.focus(); return; }
-        const response = await postJson('/auth/register', { name: document.getElementById('registerName').value, cpf: document.getElementById('cpfInput').value, email: registerEmail.value, password: document.getElementById('registerPassword').value });
+        const response = await postJson('/auth/register', {
+            name: document.getElementById('registerName').value,
+            cpf: document.getElementById('cpfInput').value,
+            email: registerEmail.value,
+            password: document.getElementById('registerPassword').value,
+            registerAsAdministrator: registerAsAdministrator?.checked ?? false,
+            adminAccessCode: registerAsAdministrator?.checked ? adminAccessCode?.value : null
+        });
         if (!response.ok) return avisos.error(await readApiMessage(response, 'Não foi possível concluir o cadastro.'));
-        avisos.success('Cadastro de visitante concluído. Faça login para continuar.'); event.target.reset();
+        const result = await response.json();
+        avisos.success(result.message || 'Cadastro concluído. Faça login para continuar.');
+        event.target.reset();
+        if (adminRegistrationFields) adminRegistrationFields.hidden = true;
+        if (adminAccessCode) adminAccessCode.required = false;
+        resetAdminCodeVisibility();
     });
 
     document.getElementById('loginForm')?.addEventListener('submit', async event => {
         event.preventDefault(); const response = await postJson('/auth/login', { email: document.getElementById('loginEmail').value, password: document.getElementById('loginPassword').value });
-        if (!response.ok) return avisos.error(await readApiMessage(response, 'E-mail ou senha incorretos.'));
-        csrfToken = null; window.perfilUsuario.display(await response.json()); bootstrap.Modal.getOrCreateInstance(document.getElementById('authModal')).hide(); event.target.reset(); avisos.success('Login concluído.');
+        if (!response.ok) return avisos.error(response.status === 401 ? 'Confira o e-mail e a senha.' : await readApiMessage(response, 'Não foi possível entrar agora.'));
+        csrfToken = null;
+        window.perfilUsuario.display(await response.json());
+        const intent = pendingAuthIntent;
+        pendingAuthIntent = null;
+        const authModal = document.getElementById('authModal');
+        if (intent) authModal.addEventListener('hidden.bs.modal', () => returnToPendingOperation(intent), { once: true });
+        bootstrap.Modal.getOrCreateInstance(authModal).hide();
+        event.target.reset();
+        avisos.success('Login realizado.');
     });
 
     document.querySelectorAll('.product').forEach(product => product.querySelector('button')?.addEventListener('click', () => window.carrinho.add(Number(product.dataset.productId))));
     document.getElementById('ticketForm')?.addEventListener('submit', async event => {
-        event.preventDefault(); const response = await postJson('/user-actions/tickets', { sessionId: Number(document.getElementById('ticketSession').value), quantity: Number(document.getElementById('ticketQuantity').value), requestId: requestId() });
-        if (!response.ok) return avisos.error(await readApiMessage(response, 'Não foi possível reservar o ingresso.'));
-        avisos.success(await readApiMessage(response, 'Ingresso reservado com sucesso.')); window.registrosUsuario.load();
+        event.preventDefault();
+        await submitSessionOperation({
+            type: 'ticket',
+            form: event.currentTarget,
+            url: '/user-actions/tickets',
+            body: () => ({ sessionId: Number(document.getElementById('ticketSession').value), quantity: Number(document.getElementById('ticketQuantity').value), requestId: requestId() }),
+            successMessage: 'Ingresso reservado.',
+            fallbackError: 'Não foi possível reservar o ingresso.'
+        });
     });
     document.getElementById('agendaForm')?.addEventListener('submit', async event => {
-        event.preventDefault(); const response = await postJson('/user-actions/appointments', { sessionId: Number(document.getElementById('agendaSession').value), requestId: requestId() });
-        if (!response.ok) return avisos.error(await readApiMessage(response, 'Não foi possível agendar a visita.'));
-        avisos.success(await readApiMessage(response, 'Visita agendada com sucesso.')); window.registrosUsuario.load();
+        event.preventDefault();
+        await submitSessionOperation({
+            type: 'agenda',
+            form: event.currentTarget,
+            url: '/user-actions/appointments',
+            body: () => ({ sessionId: Number(document.getElementById('agendaSession').value), requestId: requestId() }),
+            successMessage: 'Visita agendada.',
+            fallbackError: 'Não foi possível agendar a visita.'
+        });
     });
 });

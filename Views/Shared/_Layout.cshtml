@@ -1,4 +1,7 @@
-﻿<!DOCTYPE html>
+﻿@using AuroraGaleria.Configuration
+@using Microsoft.Extensions.Options
+@inject IOptions<AcademicDemoOptions> AcademicDemoOptions
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="utf-8" />
@@ -123,6 +126,23 @@
                                 <small id="registerEmailMessage" class="form-field-help">Informe um e-mail válido, como nome@dominio.com.</small>
                                 <label for="registerPassword">Senha</label>
                                 <input id="registerPassword" type="password" autocomplete="new-password" minlength="6" required>
+                                @if (AcademicDemoOptions.Value.EnableAdminRegistration)
+                                {
+                                    <div class="admin-registration-option">
+                                        <label class="admin-registration-toggle" for="registerAsAdministrator">
+                                            <input id="registerAsAdministrator" type="checkbox">
+                                            <span>Cadastrar como administrador</span>
+                                        </label>
+                                        <div id="adminRegistrationFields" class="admin-registration-fields" hidden>
+                                            <label for="adminAccessCode">Código de acesso administrativo</label>
+                                            <div class="admin-access-code-row">
+                                                <input id="adminAccessCode" type="password" autocomplete="off" inputmode="numeric" aria-describedby="adminAccessCodeHelp">
+                                                <button id="toggleAdminAccessCode" class="secondary-inline-button" type="button" aria-controls="adminAccessCode" aria-pressed="false">Mostrar código</button>
+                                            </div>
+                                            <small id="adminAccessCodeHelp" class="form-field-help">Recurso para demonstração acadêmica. Utilize o código 123 para testar o perfil de administrador.</small>
+                                        </div>
+                                    </div>
+                                }
                                 <button type="submit">Cadastrar</button>
                             </form>
                         </div>
