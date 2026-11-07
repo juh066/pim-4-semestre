@@ -22,6 +22,9 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
         Assert.Contains("Caneca Aurora", html);
         Assert.Contains("data-session-picker=\"ticket\"", html);
         Assert.Contains("data-session-picker=\"agenda\"", html);
+        Assert.Contains("href=\"/#comprar-ingressos\"", html);
+        Assert.Contains("href=\"/#agendar-visita\"", html);
+        Assert.Contains("href=\"/#lojinha\"", html);
         Assert.Contains("15 de maio a 30 de junho de 2027", html);
         Assert.Contains("\"date\":\"15/05/2027\"", html);
         Assert.Contains("\"id\":1", html);

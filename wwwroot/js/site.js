@@ -604,6 +604,17 @@ async function submitSessionOperation({ type, form, url, body, successMessage, f
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.home-section-link').forEach(link => {
+        link.addEventListener('click', () => {
+            const navigation = document.querySelector('.navbar-collapse');
+            if (!navigation) return;
+            const closeNavigation = () => bootstrap.Collapse.getOrCreateInstance(navigation).hide();
+            if (navigation.classList.contains('show')) closeNavigation();
+            else if (navigation.classList.contains('collapsing'))
+                navigation.addEventListener('shown.bs.collapse', closeNavigation, { once: true });
+        });
+    });
+
     window.registrosUsuario = new RegistrosUsuario(); window.carrinho = new Carrinho(); window.perfilUsuario = new PerfilUsuario();
     const catalogElement = document.getElementById('sessionCatalog');
     const sessionCatalog = catalogElement ? JSON.parse(catalogElement.textContent || '[]') : [];

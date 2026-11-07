@@ -42,7 +42,12 @@ public class AdminRegistrationTests
         using var login = await Login(client, "administrador@example.test");
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
         Assert.Equal("Administrator", (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("role").GetString());
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/admin")).StatusCode);
+        using var administration = await client.GetAsync("/admin");
+        Assert.Equal(HttpStatusCode.OK, administration.StatusCode);
+        var administrationHtml = await administration.Content.ReadAsStringAsync();
+        Assert.Contains("href=\"/#comprar-ingressos\"", administrationHtml);
+        Assert.Contains("href=\"/#agendar-visita\"", administrationHtml);
+        Assert.Contains("href=\"/#lojinha\"", administrationHtml);
     }
 
     [Theory]
