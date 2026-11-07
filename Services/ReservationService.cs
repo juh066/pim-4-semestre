@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using AuroraGaleria.Data;
 using AuroraGaleria.Models;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,11 @@ public sealed class ReservationService(AppDbContext db, IGalleryClock clock) : I
         {
             return ServiceResult<VisitReservation>.Fail("invalid_quantity", "Informe uma quantidade entre 1 e 20.");
         }
+        if (type is not ReservationTypes.Ticket and not ReservationTypes.Appointment || string.IsNullOrWhiteSpace(requestId))
+            return ServiceResult<VisitReservation>.Fail("invalid", "A solicitação de reserva é inválida.");
+
+        if (db.Database.IsSqlServer())
+            return await ReserveWithSqlServerAsync(userId, sessionId, quantity, type, requestId);
 
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var previous = await db.VisitReservations.AsNoTracking().SingleOrDefaultAsync(item => item.UserId == userId && item.RequestId == requestId);
@@ -62,6 +68,9 @@ public sealed class ReservationService(AppDbContext db, IGalleryClock clock) : I
 
     public async Task<ServiceResult<bool>> CancelAsync(int userId, int reservationId)
     {
+        if (db.Database.IsSqlServer())
+            return await CancelWithSqlServerAsync(userId, reservationId);
+
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var reservation = await db.VisitReservations.SingleOrDefaultAsync(item => item.Id == reservationId && item.UserId == userId);
         if (reservation is null)
@@ -90,4 +99,74 @@ public sealed class ReservationService(AppDbContext db, IGalleryClock clock) : I
         await tx.CommitAsync();
         return ServiceResult<bool>.Ok(true);
     }
+
+    private async Task<ServiceResult<VisitReservation>> ReserveWithSqlServerAsync(int userId, int sessionId, int quantity, string type, string requestId)
+    {
+        var result = await ExecuteProcedureAsync("dbo.sp_ReserveVisitSession", command =>
+        {
+            Add(command, "@UserId", DbType.Int32, userId);
+            Add(command, "@SessionId", DbType.Int32, sessionId);
+            Add(command, "@Quantity", DbType.Int32, quantity);
+            Add(command, "@Type", DbType.String, type);
+            Add(command, "@RequestId", DbType.String, requestId);
+            Add(command, "@CreatedAtUtc", DbType.DateTime2, clock.UtcNow.UtcDateTime);
+            Add(command, "@GalleryNow", DbType.DateTime2, clock.GalleryNow.DateTime);
+        });
+        if (result.Id is int reservationId && result.Code is "ok" or "duplicate")
+        {
+            var reservation = await db.VisitReservations.AsNoTracking().SingleAsync(item => item.Id == reservationId);
+            return ServiceResult<VisitReservation>.Ok(reservation, result.Message);
+        }
+        return ServiceResult<VisitReservation>.Fail(result.Code, result.Message);
+    }
+
+    private async Task<ServiceResult<bool>> CancelWithSqlServerAsync(int userId, int reservationId)
+    {
+        var result = await ExecuteProcedureAsync("dbo.sp_CancelVisitReservation", command =>
+        {
+            Add(command, "@UserId", DbType.Int32, userId);
+            Add(command, "@ReservationId", DbType.Int32, reservationId);
+            Add(command, "@CancelledAtUtc", DbType.DateTime2, clock.UtcNow.UtcDateTime);
+            Add(command, "@GalleryNow", DbType.DateTime2, clock.GalleryNow.DateTime);
+        });
+        return result.Code is "ok" or "already_cancelled"
+            ? ServiceResult<bool>.Ok(true, result.Message)
+            : ServiceResult<bool>.Fail(result.Code, result.Message);
+    }
+
+    private async Task<ProcedureResult> ExecuteProcedureAsync(string procedure, Action<DbCommand> configure)
+    {
+        var connection = db.Database.GetDbConnection();
+        var closeAfter = connection.State != ConnectionState.Open;
+        if (closeAfter) await connection.OpenAsync();
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = procedure;
+            command.CommandType = CommandType.StoredProcedure;
+            configure(command);
+            await using var reader = await command.ExecuteReaderAsync();
+            if (!await reader.ReadAsync())
+                return new ProcedureResult("error", "A operação não retornou um resultado.", null);
+            return new ProcedureResult(
+                reader.GetString(reader.GetOrdinal("ResultCode")),
+                reader.GetString(reader.GetOrdinal("Message")),
+                reader.IsDBNull(reader.GetOrdinal("ReservationId")) ? null : reader.GetInt32(reader.GetOrdinal("ReservationId")));
+        }
+        finally
+        {
+            if (closeAfter) await connection.CloseAsync();
+        }
+    }
+
+    private static void Add(DbCommand command, string name, DbType type, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.DbType = type;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
+
+    private sealed record ProcedureResult(string Code, string Message, int? Id);
 }

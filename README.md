@@ -1,28 +1,31 @@
-# Galeria Aurora — PIM III / preparação para o PIM IV
+# Galeria Aurora — PIM IV
 
-Aplicação acadêmica em ASP.NET Core MVC, Entity Framework Core e SQLite. Compras e ingressos são **simulações**: o sistema não solicita dados de cartão, não cobra valores e não deve ser apresentado como integração de pagamento real.
+Aplicação acadêmica em ASP.NET Core MVC, Entity Framework Core e SQL Server. Compras e ingressos são **simulações**: o sistema não solicita dados de cartão, não cobra valores e não deve ser apresentado como integração de pagamento real.
 
 ## Executar
 
-Requisitos: SDK .NET 10.
+Requisitos: SDK .NET 10 e SQL Server. No Windows, a configuração de desenvolvimento usa LocalDB com autenticação integrada.
 
 ```bash
+sqllocaldb start MSSQLLocalDB
+dotnet tool restore
 dotnet restore
 dotnet run
 ```
 
-A URL é exibida no terminal (por padrão, `http://localhost:5140` no perfil de desenvolvimento). Na primeira execução, a aplicação cria ou atualiza `aurora.db` incrementalmente e insere o catálogo inicial somente quando as tabelas estão vazias.
+A URL é exibida no terminal (por padrão, `http://localhost:5140`). Na primeira execução, as migrações criam ou atualizam o banco `AuroraGaleria` e o catálogo inicial é inserido somente quando as tabelas estão vazias.
 
 ## Banco, backup e migração
 
-Antes de aplicar esta versão ao banco de trabalho foi criada a cópia `backups/aurora-before-pim4-20261103.db` (arquivos `.db` são ignorados pelo Git). Para outro ambiente, faça a sua própria cópia antes da primeira execução:
+As migrações em `Data/Migrations` são a fonte principal do esquema SQL Server. O script integral está em `docs/sql/aurora-sqlserver.sql`. O guia `docs/sql-server.md` explica configuração, transferência somente leitura do SQLite, conferência, backup, restauração e corte definitivo. O modelo entidade-relacionamento e os modelos lógico/físico estão em `docs/modelo-dados.md`.
 
-```bash
-cp aurora.db backups/aurora-antes-da-migracao.db
-dotnet run
+Para transferir o banco existente para um SQL Server novo:
+
+```powershell
+Copy-Item aurora.db backups/aurora-antes-do-sqlserver.db
+dotnet run -- --migrate-sqlite-to-sqlserver
+dotnet run -- --verify-sqlserver-import
 ```
-
-O inicializador versionado em `Data/DatabaseInitializer.cs` altera o esquema sem apagar ou recriar o banco. Ele mantém tabelas legadas, acrescenta papéis, estado ativo, sessões, reservas, pedidos, itens históricos e idempotência. Registros legados que não podem ser relacionados com segurança a uma sessão ou produto são preservados e anotados em `data_migration_issues`; nenhuma associação é inventada.
 
 ## Administrador
 
@@ -60,7 +63,7 @@ O código `123` existe somente para facilitar a apresentação acadêmica. Ele *
 - O preço armazenado no carrinho é uma referência. Se o preço oficial mudar antes da confirmação, o checkout retorna conflito, atualiza o carrinho e exige uma nova confirmação. O pedido guarda nome, preço unitário e total efetivamente confirmados.
 - Exposições e produtos públicos vêm do banco; apenas registros ativos são exibidos.
 - Uma sessão possui exposição, data, horário, capacidade e vagas ocupadas. Ingressos e agendamentos usam a mesma reserva e, portanto, consomem uma vaga uma única vez.
-- A atualização condicional de vagas ocorre dentro de transação SQLite e impede ultrapassar a capacidade. Cancelar libera as vagas na mesma transação.
+- No SQL Server, as procedures de reserva e cancelamento atualizam histórico e ocupação na mesma transação serializável, impedindo ultrapassar a capacidade ou liberar vagas duas vezes.
 - Datas passadas e datas fora do período da exposição são rejeitadas no servidor. A interface oferece somente sessões futuras válidas.
 - Chaves de solicitação impedem repetição de inclusão, reserva e checkout.
 - Visitantes veem e alteram apenas registros associados ao identificador presente no cookie autenticado. Administração e análises exigem o papel `Administrator` no servidor.
@@ -75,15 +78,15 @@ dotnet test AuroraGaleria.Tests/AuroraGaleria.Tests.csproj
 dotnet list package --vulnerable --include-transitive
 ```
 
-A suíte cobre preço adulterado, produto inexistente/inativo, quantidade inválida, datas inválidas, autorização administrativa, isolamento entre usuários, concorrência de capacidade, cancelamento, idempotência, cadastro/login/logout/carrinho/histórico e preservação de dados na migração.
+A suíte cobre as regras existentes e inclui testes contra SQL Server real para procedures, concorrência, cancelamento idempotente, trigger em múltiplas linhas e fluxos HTTP. Resultados e ambiente estão em `docs/testes-sql-server.md`.
 
 ## Dependências e acessibilidade
 
 `SQLitePCLRaw.bundle_e_sqlite3` está fixado em 3.0.5 para substituir a versão transitiva 2.1.11 afetada por `GHSA-2m69-gcr7-jv3q`. O documento está em `pt-BR`, os campos têm rótulos, o foco do carrinho retorna ao acionador e os controles possuem foco visível e ajustes para telas pequenas. O carregamento do VLibras é isolado: uma indisponibilidade externa apenas gera aviso no console.
 
-## Pendências para o PIM IV
+## Limites do escopo
 
 - O aplicativo mobile não faz parte desta etapa; os serviços de domínio foram separados para permitir futuro consumo por API.
-- O manual do PIM IV exige procedures e triggers. SQLite não oferece stored procedures. Não houve troca silenciosa de banco: será necessária uma migração futura planejada para um SGBD compatível (por exemplo, PostgreSQL ou SQL Server), com procedures/triggers equivalentes, testes de concorrência e plano de rollback.
-- Antes dessa migração, informar a data da avaliação final, controlar backups externos e validar as regras equivalentes no SGBD escolhido.
+- O SQLite permanece somente como origem preservada da importação e banco isolado dos testes rápidos; não é o banco principal.
+- Ainda é necessário informar a data da avaliação final e controlar backups externos conforme a política de retenção.
 - Pagamento real, publicação e contratação de serviços permanecem fora do escopo.

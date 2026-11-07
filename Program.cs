@@ -68,18 +68,37 @@ builder.Services.AddScoped<IAdminCatalogService, AdminCatalogService>();
 builder.Services.AddScoped<AdminBootstrapService>();
 builder.Services.AddScoped<IPrivacyService, PrivacyService>();
 builder.Services.AddScoped<IRetentionService, RetentionService>();
+builder.Services.AddScoped<SqliteToSqlServerMigrator>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IGalleryClock, GalleryClock>();
 
+var databaseProvider = builder.Configuration["DatabaseProvider"] ?? "SqlServer";
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-    )
-);
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("A conexão DefaultConnection não foi configurada.");
+    if (databaseProvider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+        options.UseSqlite(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+});
 
 var app = builder.Build();
 
-await DatabaseInitializer.InitializeAsync(app.Services, app.Logger);
+var importingFromSqlite = args.Contains("--migrate-sqlite-to-sqlserver", StringComparer.OrdinalIgnoreCase);
+await DatabaseInitializer.InitializeAsync(app.Services, app.Logger, seedCatalog: !importingFromSqlite);
+
+if (importingFromSqlite || args.Contains("--verify-sqlserver-import", StringComparer.OrdinalIgnoreCase))
+{
+    using var scope = app.Services.CreateScope();
+    var migrator = scope.ServiceProvider.GetRequiredService<SqliteToSqlServerMigrator>();
+    var result = importingFromSqlite
+        ? await migrator.ImportAsync()
+        : await migrator.VerifyAsync();
+    Console.WriteLine(result.Message);
+    Environment.ExitCode = result.Success ? 0 : 1;
+    return;
+}
 
 if (args.Contains("--retention-preview", StringComparer.OrdinalIgnoreCase) ||
     args.Contains("--retention-cleanup", StringComparer.OrdinalIgnoreCase))

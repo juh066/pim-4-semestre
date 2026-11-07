@@ -6,10 +6,21 @@ namespace AuroraGaleria.Data;
 
 public static class DatabaseInitializer
 {
-    public static async Task InitializeAsync(IServiceProvider services, ILogger logger)
+    public static async Task InitializeAsync(IServiceProvider services, ILogger logger, bool seedCatalog = true)
     {
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        if (db.Database.IsSqlServer())
+        {
+            await db.Database.MigrateAsync();
+            if (seedCatalog)
+            {
+                await SeedCatalogAsync(db, logger);
+                await EnsureDefaultSessionsAsync(db, logger);
+            }
+            return;
+        }
 
         await db.Database.EnsureCreatedAsync();
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
@@ -115,9 +126,11 @@ public static class DatabaseInitializer
         var connection = db.Database.GetDbConnection();
         if (connection.State != ConnectionState.Open) await connection.OpenAsync();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $name";
+        command.CommandText = db.Database.IsSqlServer()
+            ? "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = @name"
+            : "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $name";
         var parameter = command.CreateParameter();
-        parameter.ParameterName = "$name";
+        parameter.ParameterName = db.Database.IsSqlServer() ? "@name" : "$name";
         parameter.Value = table;
         command.Parameters.Add(parameter);
         return Convert.ToInt32(await command.ExecuteScalarAsync()) == 1;
@@ -166,11 +179,19 @@ public static class DatabaseInitializer
             await db.SaveChangesAsync();
         }
 
-        logger.LogInformation("Banco atualizado para o esquema PIM IV sem recriação. Versão de esquema: 3.");
+        logger.LogInformation(db.Database.IsSqlServer()
+            ? "Banco SQL Server atualizado pelas migrações e catálogo inicial verificado."
+            : "Banco SQLite atualizado para o esquema PIM IV sem recriação. Versão de esquema: 3.");
     }
 
     private static Task RecordMigrationIssueAsync(AppDbContext db, string entity, int legacyId, string description)
     {
+        if (db.Database.IsSqlServer())
+        {
+            return db.Database.ExecuteSqlRawAsync(
+                "IF NOT EXISTS (SELECT 1 FROM data_migration_issues WHERE Entity = {0} AND LegacyId = {1}) INSERT INTO data_migration_issues (Entity, LegacyId, Description, CreatedAt) VALUES ({0}, {1}, {2}, {3})",
+                entity, legacyId, description, DateTime.UtcNow);
+        }
         return db.Database.ExecuteSqlRawAsync(
             "INSERT OR IGNORE INTO data_migration_issues (Entity, LegacyId, Description, CreatedAt) VALUES ({0}, {1}, {2}, {3})",
             entity, legacyId, description, DateTime.UtcNow);

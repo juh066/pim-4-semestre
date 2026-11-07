@@ -38,15 +38,14 @@ Sessões com reservas não permitem mudança de exposição, data ou horário. P
 
 Alterações relevantes de sessão registram administrador, ação, registro, UTC, motivo e valores anteriores/novos, sem senhas, códigos administrativos ou dados pessoais desnecessários.
 
-## Migração, restauração e limpeza
+## Persistência, migração, restauração e limpeza
 
-O inicializador aplica a versão 3 incrementalmente: remove o índice e a coluna `Cpf`, acrescenta estados/cancelamentos, exclusões e auditoria, preservando IDs, e-mails, hashes, perfis e históricos. Não recria contas nem o banco. Antes da aplicação foi criado `backups/aurora-before-business-rules-20261107.db`.
+O banco principal é SQL Server. As migrações do Entity Framework Core criam o esquema, as procedures de reserva/cancelamento e a trigger de auditoria. A ferramenta de importação lê o SQLite sem alterá-lo, preserva IDs, e-mails, hashes, perfis e históricos e compara origem e destino. O procedimento completo está em `docs/sql-server.md`.
 
-Para restaurar, pare a aplicação, preserve o banco atual para diagnóstico e copie o backup escolhido para `aurora.db`. O backup anterior à versão 3 ainda contém CPF e deve ter retenção limitada.
+Para restaurar, pare a aplicação, preserve o banco atual para diagnóstico e restaure um backup SQL Server validado. O SQLite e backups anteriores podem conter dados pessoais históricos e devem ter retenção limitada.
 
 ## Decisões ainda pendentes
 
 - Informar a data real da avaliação final em configuração.
 - Identificar e controlar todas as cópias de segurança externas.
-- Planejar migração posterior para SGBD com procedures/triggers, incluindo rollback e testes de concorrência.
 - Definir requisitos do futuro aplicativo móvel e operação real; pagamentos continuam fora do escopo.

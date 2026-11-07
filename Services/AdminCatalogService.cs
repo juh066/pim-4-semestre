@@ -1,6 +1,7 @@
 using AuroraGaleria.Data;
 using AuroraGaleria.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace AuroraGaleria.Services;
 
@@ -150,8 +151,9 @@ public sealed class AdminCatalogService(AppDbContext db, IGalleryClock clock) : 
             return ServiceResult<int>.Fail("conflict", "Já existe uma sessão neste dia e horário.");
         var previous = new { session.ExposureId, session.VisitDate, session.StartTime, session.Capacity };
         session.ExposureId = request.ExposureId; session.VisitDate = request.VisitDate.Date; session.StartTime = request.StartTime; session.Capacity = request.Capacity;
-        await db.SaveChangesAsync();
-        await AuditAsync(administratorId, "Update", id, null, new { session.ExposureId, session.VisitDate, session.StartTime, session.Capacity }, previous);
+        await SaveSessionChangesAsync(administratorId);
+        if (!db.Database.IsSqlServer())
+            await AuditAsync(administratorId, "Update", id, null, new { session.ExposureId, session.VisitDate, session.StartTime, session.Capacity }, previous);
         return ServiceResult<int>.Ok(id);
     }
 
@@ -165,8 +167,9 @@ public sealed class AdminCatalogService(AppDbContext db, IGalleryClock clock) : 
         var previous = session.Status;
         session.Status = session.Status == SessionStatuses.Open ? SessionStatuses.Closed : SessionStatuses.Open;
         session.IsActive = session.Status == SessionStatuses.Open;
-        await db.SaveChangesAsync();
-        await AuditAsync(administratorId, session.Status == SessionStatuses.Open ? "ReopenReservations" : "CloseReservations", id, null, new { session.Status }, new { Status = previous });
+        await SaveSessionChangesAsync(administratorId);
+        if (!db.Database.IsSqlServer())
+            await AuditAsync(administratorId, session.Status == SessionStatuses.Open ? "ReopenReservations" : "CloseReservations", id, null, new { session.Status }, new { Status = previous });
         return ServiceResult<int>.Ok(id);
     }
 
@@ -189,8 +192,9 @@ public sealed class AdminCatalogService(AppDbContext db, IGalleryClock clock) : 
         var previous = new { session.Status, session.ReservedQuantity };
         session.ReservedQuantity = 0; session.Status = SessionStatuses.Cancelled; session.IsActive = false;
         session.CancellationReason = reason; session.CancelledAtUtc = clock.UtcNow.UtcDateTime;
-        await db.SaveChangesAsync();
-        await AuditAsync(administratorId, "Cancel", id, reason, new { session.Status, session.ReservedQuantity }, previous);
+        await SaveSessionChangesAsync(administratorId);
+        if (!db.Database.IsSqlServer())
+            await AuditAsync(administratorId, "Cancel", id, reason, new { session.Status, session.ReservedQuantity }, previous);
         await tx.CommitAsync();
         return ServiceResult<int>.Ok(id);
     }
@@ -205,6 +209,29 @@ public sealed class AdminCatalogService(AppDbContext db, IGalleryClock clock) : 
             NewValues = System.Text.Json.JsonSerializer.Serialize(newValues)
         });
         await db.SaveChangesAsync();
+    }
+
+    private async Task SaveSessionChangesAsync(int administratorId)
+    {
+        if (!db.Database.IsSqlServer())
+        {
+            await db.SaveChangesAsync();
+            return;
+        }
+
+        var connection = db.Database.GetDbConnection();
+        var closeAfter = connection.State != ConnectionState.Open;
+        if (closeAfter) await connection.OpenAsync();
+        try
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"EXEC sys.sp_set_session_context @key=N'AuroraAdminId', @value={administratorId}");
+            await db.SaveChangesAsync();
+        }
+        finally
+        {
+            await db.Database.ExecuteSqlRawAsync("EXEC sys.sp_set_session_context @key=N'AuroraAdminId', @value=NULL");
+            if (closeAfter) await connection.CloseAsync();
+        }
     }
 
     private static string? ValidateExposure(ExposureAdminRequest request)

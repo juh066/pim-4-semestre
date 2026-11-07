@@ -25,6 +25,8 @@ namespace AuroraGaleria.Data
         public DbSet<IdempotencyRecord> IdempotencyRecords { get; set; }
         public DbSet<AccountDeletionRequest> AccountDeletionRequests { get; set; }
         public DbSet<AdminAuditLog> AdminAuditLogs { get; set; }
+        public DbSet<DataMigrationIssue> DataMigrationIssues { get; set; }
+        public DbSet<DataImportHistory> DataImportHistories { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -48,26 +50,26 @@ namespace AuroraGaleria.Data
                 entity.Property(item => item.Descricao).HasMaxLength(1000);
                 entity.Property(item => item.ImagemUrl).HasMaxLength(300).IsRequired();
                 entity.Property(item => item.Periodo).HasColumnName("Data").HasMaxLength(80).IsRequired();
-                entity.Property(item => item.Inicio).HasColumnName("StartDate");
-                entity.Property(item => item.Fim).HasColumnName("EndDate");
+                entity.Property(item => item.Inicio).HasColumnName("StartDate").HasColumnType("date");
+                entity.Property(item => item.Fim).HasColumnName("EndDate").HasColumnType("date");
                 entity.Property(item => item.Ativa).HasColumnName("IsActive");
             });
 
             modelBuilder.Entity<Produto>(entity =>
             {
-                entity.ToTable("Produtos");
+                entity.ToTable("Produtos", table => table.HasCheckConstraint("CK_Produtos_Preco", "Preco > 0"));
                 entity.Property(item => item.Nome).HasMaxLength(120).IsRequired();
-                entity.Property(item => item.Preco).HasConversion<double>();
+                entity.Property(item => item.Preco).HasPrecision(18, 2);
                 entity.Property(item => item.ImagemUrl).HasMaxLength(300).IsRequired();
                 entity.Property(item => item.Ativo).HasColumnName("IsActive");
             });
 
             modelBuilder.Entity<CartItem>(entity =>
             {
-                entity.ToTable("cart_items");
+                entity.ToTable("cart_items", table => table.HasCheckConstraint("CK_cart_items_Quantity", "Quantity > 0"));
                 entity.HasIndex(item => new { item.UserId, item.ProductId }).IsUnique();
                 entity.Property(item => item.ProductName).HasMaxLength(120).IsRequired();
-                entity.Property(item => item.UnitPrice).HasConversion<double>();
+                entity.Property(item => item.UnitPrice).HasPrecision(18, 2);
                 entity.Property(item => item.Quantity).IsRequired();
                 entity.Property(item => item.CreatedAt).IsRequired();
                 entity.HasOne(item => item.User)
@@ -82,10 +84,17 @@ namespace AuroraGaleria.Data
 
             modelBuilder.Entity<VisitSession>(entity =>
             {
-                entity.ToTable("visit_sessions");
+                entity.ToTable("visit_sessions", table =>
+                {
+                    table.HasTrigger("trg_visit_sessions_audit");
+                    table.HasCheckConstraint("CK_visit_sessions_Capacity", "Capacity > 0");
+                    table.HasCheckConstraint("CK_visit_sessions_Occupancy", "ReservedQuantity >= 0 AND ReservedQuantity <= Capacity");
+                });
                 entity.HasIndex(item => new { item.ExposureId, item.VisitDate, item.StartTime }).IsUnique();
                 entity.Property(item => item.Status).HasMaxLength(20).IsRequired();
                 entity.Property(item => item.CancellationReason).HasMaxLength(500);
+                entity.Property(item => item.VisitDate).HasColumnType("date");
+                entity.Property(item => item.StartTime).HasColumnType("time(0)");
                 entity.HasOne(item => item.Exposure)
                     .WithMany(item => item.Sessoes)
                     .HasForeignKey(item => item.ExposureId)
@@ -94,7 +103,7 @@ namespace AuroraGaleria.Data
 
             modelBuilder.Entity<VisitReservation>(entity =>
             {
-                entity.ToTable("visit_reservations");
+                entity.ToTable("visit_reservations", table => table.HasCheckConstraint("CK_visit_reservations_Quantity", "Quantity > 0"));
                 entity.HasIndex(item => new { item.UserId, item.RequestId }).IsUnique();
                 entity.Property(item => item.Type).HasMaxLength(20).IsRequired();
                 entity.Property(item => item.Status).HasMaxLength(20).IsRequired();
@@ -102,24 +111,26 @@ namespace AuroraGaleria.Data
                 entity.Property(item => item.ExposureName).HasMaxLength(140).IsRequired();
                 entity.Property(item => item.CancellationSource).HasMaxLength(20);
                 entity.Property(item => item.CancellationReason).HasMaxLength(500);
+                entity.Property(item => item.VisitDate).HasColumnType("date");
+                entity.Property(item => item.StartTime).HasColumnType("time(0)");
                 entity.HasOne(item => item.User).WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(item => item.VisitSession).WithMany(item => item.Reservations).HasForeignKey(item => item.VisitSessionId).OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<PurchaseOrder>(entity =>
             {
-                entity.ToTable("purchase_orders");
+                entity.ToTable("purchase_orders", table => table.HasCheckConstraint("CK_purchase_orders_TotalPrice", "TotalPrice >= 0"));
                 entity.HasIndex(item => new { item.UserId, item.RequestId }).IsUnique();
-                entity.Property(item => item.TotalPrice).HasConversion<double>();
+                entity.Property(item => item.TotalPrice).HasPrecision(18, 2);
                 entity.HasOne(item => item.User).WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<PurchaseItem>(entity =>
             {
-                entity.ToTable("purchase_items");
-                entity.Property(item => item.UnitPrice).HasConversion<double>();
-                entity.Property(item => item.TotalPrice).HasConversion<double>();
-                entity.HasOne(item => item.PurchaseOrder).WithMany(item => item.Items).HasForeignKey(item => item.PurchaseOrderId).OnDelete(DeleteBehavior.Cascade);
+                entity.ToTable("purchase_items", table => table.HasCheckConstraint("CK_purchase_items_Quantity", "Quantity > 0"));
+                entity.Property(item => item.UnitPrice).HasPrecision(18, 2);
+                entity.Property(item => item.TotalPrice).HasPrecision(18, 2);
+                entity.HasOne(item => item.PurchaseOrder).WithMany(item => item.Items).HasForeignKey(item => item.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(item => item.Product).WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.SetNull);
             });
 
@@ -145,6 +156,18 @@ namespace AuroraGaleria.Data
                 entity.Property(item => item.Reason).HasMaxLength(500);
             });
 
+            modelBuilder.Entity<DataMigrationIssue>(entity =>
+            {
+                entity.ToTable("data_migration_issues");
+                entity.HasIndex(item => new { item.Entity, item.LegacyId }).IsUnique();
+            });
+
+            modelBuilder.Entity<DataImportHistory>(entity =>
+            {
+                entity.ToTable("data_import_history");
+                entity.HasIndex(item => item.SourceSha256);
+            });
+
             modelBuilder.Entity<UserTicket>(entity =>
             {
                 entity.ToTable("user_tickets");
@@ -153,7 +176,7 @@ namespace AuroraGaleria.Data
                 entity.HasOne(ticket => ticket.User)
                     .WithMany()
                     .HasForeignKey(ticket => ticket.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<UserAppointment>(entity =>
@@ -164,19 +187,19 @@ namespace AuroraGaleria.Data
                 entity.HasOne(appointment => appointment.User)
                     .WithMany()
                     .HasForeignKey(appointment => appointment.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<UserPurchase>(entity =>
             {
                 entity.ToTable("user_purchases");
                 entity.Property(purchase => purchase.ProductName).HasMaxLength(120).IsRequired();
-                entity.Property(purchase => purchase.TotalPrice).HasConversion<double>();
+                entity.Property(purchase => purchase.TotalPrice).HasPrecision(18, 2);
                 entity.Property(purchase => purchase.Status).HasMaxLength(40).IsRequired();
                 entity.HasOne(purchase => purchase.User)
                     .WithMany()
                     .HasForeignKey(purchase => purchase.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                    .OnDelete(DeleteBehavior.Restrict);
             });
         }
     }
