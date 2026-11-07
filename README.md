@@ -30,7 +30,6 @@ O cadastro comum sempre cria o papel `Visitor`. Para uma instalação normal, o 
 
 ```bash
 AURORA_ADMIN_NAME="Administrador" \
-AURORA_ADMIN_CPF="CPF_FICTICIO_VALIDO" \
 AURORA_ADMIN_EMAIL="admin@example.test" \
 AURORA_ADMIN_PASSWORD="uma-senha-forte-com-12-ou-mais" \
 dotnet run -- --create-admin
@@ -67,7 +66,7 @@ O código `123` existe somente para facilitar a apresentação acadêmica. Ele *
 - Visitantes veem e alteram apenas registros associados ao identificador presente no cookie autenticado. Administração e análises exigem o papel `Administrator` no servidor.
 - Operações que alteram estado usam token antiforgery no cabeçalho ou no formulário; cookies são `HttpOnly` e `SameSite=Strict`.
 
-O CPF foi mantido porque já faz parte do cadastro e da restrição de unicidade do projeto, mas é tratado como identificador acadêmico fictício: qualquer sequência de exatamente 11 dígitos é aceita, desde que ainda não esteja cadastrada. Para o PIM IV, a equipe deve decidir se existe justificativa acadêmica/legal para coletá-lo; se não houver, uma migração posterior deve torná-lo opcional ou removê-lo.
+O cadastro não coleta CPF. Contas e históricos usam apenas o identificador interno. As regras completas de privacidade, retenção, fuso, cancelamento e administração estão em `docs/regras-de-negocio.md`.
 
 ## Testes
 
@@ -86,5 +85,5 @@ A suíte cobre preço adulterado, produto inexistente/inativo, quantidade invál
 
 - O aplicativo mobile não faz parte desta etapa; os serviços de domínio foram separados para permitir futuro consumo por API.
 - O manual do PIM IV exige procedures e triggers. SQLite não oferece stored procedures. Não houve troca silenciosa de banco: será necessária uma migração futura planejada para um SGBD compatível (por exemplo, PostgreSQL ou SQL Server), com procedures/triggers equivalentes, testes de concorrência e plano de rollback.
-- Antes dessa migração, definir retenção de CPF, política de privacidade, fuso horário oficial, regras de reembolso/cancelamento e operação administrativa das sessões.
+- Antes dessa migração, informar a data da avaliação final, controlar backups externos e validar as regras equivalentes no SGBD escolhido.
 - Pagamento real, publicação e contratação de serviços permanecem fora do escopo.

@@ -14,7 +14,7 @@ public class AdminRegistrationTests
         using var factory = EnabledFactory();
         using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
 
-        using var registration = await Register(client, "visitante@example.test", "91000000001");
+        using var registration = await Register(client, "visitante@example.test");
         Assert.Equal(HttpStatusCode.OK, registration.StatusCode);
         Assert.Equal("Visitor", (await registration.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("role").GetString());
 
@@ -35,7 +35,7 @@ public class AdminRegistrationTests
         Assert.Contains("Utilize o código 123", home);
 
         using var registration = await Register(
-            client, "administrador@example.test", "91000000002", true, "123");
+            client, "administrador@example.test", true, "123");
         Assert.Equal(HttpStatusCode.OK, registration.StatusCode);
         Assert.Equal("Administrator", (await registration.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("role").GetString());
 
@@ -54,12 +54,12 @@ public class AdminRegistrationTests
         using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
 
         using var rejected = await Register(
-            client, "tentativa-admin@example.test", "91000000003", true, code);
+            client, "tentativa-admin@example.test", true, code);
         Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
         Assert.Contains("Código de acesso administrativo inválido.", await rejected.Content.ReadAsStringAsync());
 
         using var accepted = await Register(
-            client, "tentativa-admin@example.test", "91000000003", true, "123");
+            client, "tentativa-admin@example.test", true, "123");
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
     }
 
@@ -72,7 +72,6 @@ public class AdminRegistrationTests
         using var registration = await SendJson(client, HttpMethod.Post, "/auth/register", new
         {
             name = "Visitante Direto",
-            cpf = "91000000004",
             email = "direto@example.test",
             password = Password,
             role = "Administrator",
@@ -97,11 +96,11 @@ public class AdminRegistrationTests
         Assert.DoesNotContain("Cadastrar como administrador", home);
 
         using var rejected = await Register(
-            client, "desativado@example.test", "91000000005", true, "123");
+            client, "desativado@example.test", true, "123");
         Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
         Assert.Contains("não está disponível", await rejected.Content.ReadAsStringAsync());
 
-        using var common = await Register(client, "desativado@example.test", "91000000005");
+        using var common = await Register(client, "desativado@example.test");
         Assert.Equal(HttpStatusCode.OK, common.StatusCode);
         Assert.Equal("Visitor", (await common.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("role").GetString());
     }
@@ -113,15 +112,15 @@ public class AdminRegistrationTests
         using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
 
         using var invalidEmail = await Register(
-            client, "admin@incompleto", "91000000006", true, "123");
+            client, "admin@incompleto", true, "123");
         Assert.Equal(HttpStatusCode.BadRequest, invalidEmail.StatusCode);
 
         using var first = await Register(
-            client, "admin.unico@example.test", "91000000006", true, "123");
+            client, "admin.unico@example.test", true, "123");
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
 
         using var duplicate = await Register(
-            client, "  ADMIN.UNICO@example.test  ", "91000000007", true, "123");
+            client, "  ADMIN.UNICO@example.test  ", true, "123");
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
     }
 
@@ -130,13 +129,11 @@ public class AdminRegistrationTests
     private static Task<HttpResponseMessage> Register(
         HttpClient client,
         string email,
-        string cpf,
         bool registerAsAdministrator = false,
         string? adminAccessCode = null) =>
         SendJson(client, HttpMethod.Post, "/auth/register", new
         {
             name = "Pessoa Teste",
-            cpf,
             email,
             password = Password,
             registerAsAdministrator,

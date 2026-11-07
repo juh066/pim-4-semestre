@@ -42,7 +42,7 @@ public class BusinessRulesTests
         await using var store = new TestDatabase(); var ids = await store.SeedAsync();
         await using var db = store.CreateContext();
         var session = await db.VisitSessions.FindAsync(ids.Session); var exposure = await db.Exposicoes.FindAsync(ids.Exposure);
-        var service = new ReservationService(db, TimeProvider.System);
+        var service = new ReservationService(db, TestDatabase.CreateClock());
         session!.VisitDate = DateTime.Today.AddDays(-1); await db.SaveChangesAsync();
         Assert.Equal("invalid_date", (await service.ReserveAsync(ids.User1, ids.Session, 1, ReservationTypes.Ticket, "past")).Code);
         session.VisitDate = exposure!.Fim.AddDays(1); await db.SaveChangesAsync();
@@ -53,7 +53,7 @@ public class BusinessRulesTests
     public async Task OwnershipCancellationAndAvailabilityAreConsistent()
     {
         await using var store = new TestDatabase(); var ids = await store.SeedAsync();
-        await using var db = store.CreateContext(); var service = new ReservationService(db, TimeProvider.System);
+        await using var db = store.CreateContext(); var service = new ReservationService(db, TestDatabase.CreateClock());
         var reservation = await service.ReserveAsync(ids.User1, ids.Session, 3, ReservationTypes.Ticket, "reserve");
         Assert.True(reservation.Success);
         Assert.Equal("not_found", (await service.CancelAsync(ids.User2, reservation.Value!.Id)).Code);
@@ -66,8 +66,8 @@ public class BusinessRulesTests
     {
         await using var store = new TestDatabase(); var ids = await store.SeedAsync(capacity: 5);
         await using var db1 = store.CreateContext(); await using var db2 = store.CreateContext();
-        var first = new ReservationService(db1, TimeProvider.System).ReserveAsync(ids.User1, ids.Session, 4, ReservationTypes.Ticket, "one");
-        var second = new ReservationService(db2, TimeProvider.System).ReserveAsync(ids.User2, ids.Session, 4, ReservationTypes.Ticket, "two");
+        var first = new ReservationService(db1, TestDatabase.CreateClock()).ReserveAsync(ids.User1, ids.Session, 4, ReservationTypes.Ticket, "one");
+        var second = new ReservationService(db2, TestDatabase.CreateClock()).ReserveAsync(ids.User2, ids.Session, 4, ReservationTypes.Ticket, "two");
         var results = await Task.WhenAll(first, second);
         Assert.Single(results, item => item.Success);
         await using var check = store.CreateContext();
@@ -78,7 +78,7 @@ public class BusinessRulesTests
     public async Task RepeatedRequestsAreIdempotent()
     {
         await using var store = new TestDatabase(); var ids = await store.SeedAsync();
-        await using var db = store.CreateContext(); var cart = new CartService(db); var reservations = new ReservationService(db, TimeProvider.System);
+        await using var db = store.CreateContext(); var cart = new CartService(db); var reservations = new ReservationService(db, TestDatabase.CreateClock());
         var request = new AddCartItemRequest { ProductId = ids.Product, Quantity = 1, RequestId = "same-add" };
         await cart.AddAsync(ids.User1, request); await cart.AddAsync(ids.User1, request);
         Assert.Equal(1, (await cart.GetAsync(ids.User1)).Count);
@@ -97,7 +97,7 @@ public class BusinessRulesTests
     public async Task ExposurePeriodCannotOrphanSessionsAndSessionsCanBeDisabled()
     {
         await using var store = new TestDatabase(); var ids = await store.SeedAsync();
-        await using var db = store.CreateContext(); var service = new AdminCatalogService(db, TimeProvider.System);
+        await using var db = store.CreateContext(); var service = new AdminCatalogService(db, TestDatabase.CreateClock());
         var exposure = await db.Exposicoes.FindAsync(ids.Exposure);
         var update = new ExposureAdminRequest
         {
@@ -106,13 +106,13 @@ public class BusinessRulesTests
         };
         Assert.Equal("conflict", (await service.UpdateExposureAsync(ids.Exposure, update)).Code);
         var existingSession = await db.VisitSessions.FindAsync(ids.Session);
-        var duplicate = await service.CreateSessionAsync(new SessionAdminRequest
+        var duplicate = await service.CreateSessionAsync(ids.User1, new SessionAdminRequest
         {
             ExposureId = ids.Exposure, VisitDate = existingSession!.VisitDate,
             StartTime = existingSession.StartTime, Capacity = 10
         });
         Assert.Equal("conflict", duplicate.Code);
-        Assert.True((await service.ToggleSessionAsync(ids.Session)).Success);
+        Assert.True((await service.ToggleSessionAsync(ids.User1, ids.Session)).Success);
         Assert.False((await db.VisitSessions.FindAsync(ids.Session))!.IsActive);
     }
 }

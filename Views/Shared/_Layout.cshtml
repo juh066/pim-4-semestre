@@ -65,7 +65,7 @@
                             </svg>
                         </a>
                         <a id="adminButton" class="navbar-icon-button" asp-controller="Admin" asp-action="Index" aria-label="Administrar cadastros" title="Administração" hidden>Admin</a>
-                        <button id="cartButton" class="navbar-icon-button cart-navbar-button" type="button" aria-label="Abrir carrinho" title="Carrinho">
+                        <button id="cartButton" class="navbar-icon-button cart-navbar-button" type="button" aria-label="Abrir carrinho" title="Carrinho" hidden>
                             <svg aria-hidden="true" viewBox="0 0 24 24">
                                 <circle cx="8" cy="21" r="1" />
                                 <circle cx="19" cy="21" r="1" />
@@ -119,8 +119,6 @@
                             <form id="registerForm">
                                 <label for="registerName">Nome</label>
                                 <input id="registerName" type="text" autocomplete="name" required>
-                                <label for="cpfInput">CPF fictício (11 dígitos)</label>
-                                <input type="text" id="cpfInput" inputmode="numeric" maxlength="11" required>
                                 <label for="registerEmail">E-mail</label>
                                 <input id="registerEmail" type="email" autocomplete="email" maxlength="256" aria-describedby="registerEmailMessage" required>
                                 <small id="registerEmailMessage" class="form-field-help">Informe um e-mail válido, como nome@dominio.com.</small>
@@ -144,29 +142,38 @@
                                     </div>
                                 }
                                 <button type="submit">Cadastrar</button>
+                                <small class="form-field-help">Ao se cadastrar, consulte nossa <a href="/privacidade">página de Privacidade</a>.</small>
                             </form>
                         </div>
                     </div>
                     <div id="loggedInActions" class="logged-in-actions" hidden>
                         <div class="account-summary">
                             <span>Você está conectado.</span>
-                            <button id="logoutBtn" type="button">Sair</button>
+                            <div class="account-actions">
+                                <button id="requestDeletionBtn" class="secondary-inline-button" type="button">Solicitar exclusão da conta</button>
+                                <button id="logoutBtn" type="button">Sair</button>
+                            </div>
+                        </div>
+                        <div class="user-record-tabs" role="tablist" aria-label="Registros do usuário">
+                            <button id="userTicketsTab" class="user-record-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="userTicketsPanel" data-record-tab="tickets">Meus Ingressos</button>
+                            <button id="userAppointmentsTab" class="user-record-tab" type="button" role="tab" aria-selected="false" aria-controls="userAppointmentsPanel" data-record-tab="appointments">Meus Agendamentos</button>
+                            <button id="userPurchasesTab" class="user-record-tab" type="button" role="tab" aria-selected="false" aria-controls="userPurchasesPanel" data-record-tab="purchases">Minhas Compras</button>
                         </div>
                         <div class="user-records-grid">
-                            <section class="user-records-panel" aria-labelledby="userTicketsTitle">
+                            <section id="userTicketsPanel" class="user-records-panel" role="tabpanel" aria-labelledby="userTicketsTab" data-record-panel="tickets">
                                 <h3 id="userTicketsTitle">Meus Ingressos</h3>
                                 <div id="userTicketsList" class="user-records-list"></div>
-                                <p id="userTicketsEmpty" class="user-records-empty">Você ainda não comprou ingressos.</p>
+                                <p id="userTicketsEmpty" class="user-records-empty">Nenhum registro encontrado.</p>
                             </section>
-                            <section class="user-records-panel" aria-labelledby="userAppointmentsTitle">
+                            <section id="userAppointmentsPanel" class="user-records-panel" role="tabpanel" aria-labelledby="userAppointmentsTab" data-record-panel="appointments" hidden>
                                 <h3 id="userAppointmentsTitle">Meus Agendamentos</h3>
                                 <div id="userAppointmentsList" class="user-records-list"></div>
-                                <p id="userAppointmentsEmpty" class="user-records-empty">Você ainda não tem visitas agendadas.</p>
+                                <p id="userAppointmentsEmpty" class="user-records-empty">Nenhum registro encontrado.</p>
                             </section>
-                            <section class="user-records-panel user-purchases-panel" aria-labelledby="userPurchasesTitle">
+                            <section id="userPurchasesPanel" class="user-records-panel user-purchases-panel" role="tabpanel" aria-labelledby="userPurchasesTab" data-record-panel="purchases" hidden>
                                 <h3 id="userPurchasesTitle">Minhas Compras</h3>
                                 <div id="userPurchasesList" class="user-records-list"></div>
-                                <p id="userPurchasesEmpty" class="user-records-empty">Nenhuma compra realizada.</p>
+                                <p id="userPurchasesEmpty" class="user-records-empty">Nenhum registro encontrado.</p>
                             </section>
                         </div>
                     </div>

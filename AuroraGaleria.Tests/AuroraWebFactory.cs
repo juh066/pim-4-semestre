@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 
 namespace AuroraGaleria.Tests;
@@ -34,6 +35,10 @@ public sealed class AuroraWebFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing && File.Exists(_databasePath)) File.Delete(_databasePath);
+        if (disposing)
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(_databasePath)) File.Delete(_databasePath);
+        }
     }
 }

@@ -377,6 +377,8 @@ class PerfilUsuario {
         if (this.icon) this.icon.style.display = 'none';
         if (this.logged) this.logged.hidden = false;
         if (this.authGrid) this.authGrid.hidden = true;
+        const cartButton = document.getElementById('cartButton');
+        if (cartButton) cartButton.hidden = false;
         const isAdmin = user.role === 'Administrator';
         if (document.getElementById('analyticsButton')) document.getElementById('analyticsButton').hidden = !isAdmin;
         if (document.getElementById('adminButton')) document.getElementById('adminButton').hidden = !isAdmin;
@@ -392,6 +394,8 @@ class PerfilUsuario {
         if (this.button) { this.button.setAttribute('aria-label', 'Abrir login e cadastro'); this.button.title = 'Login e Cadastro'; }
         if (this.name) this.name.textContent = ''; if (this.initials) this.initials.textContent = ''; if (this.icon) this.icon.style.display = '';
         if (this.logged) this.logged.hidden = true; if (this.authGrid) this.authGrid.hidden = false;
+        const cartButton = document.getElementById('cartButton');
+        if (cartButton) cartButton.hidden = true;
         ['analyticsButton', 'adminButton'].forEach(id => { const element = document.getElementById(id); if (element) element.hidden = true; });
         window.carrinho?.clear(); window.registrosUsuario?.clear();
     }
@@ -402,6 +406,17 @@ class RegistrosUsuario {
         this.tickets = document.getElementById('userTicketsList'); this.ticketsEmpty = document.getElementById('userTicketsEmpty');
         this.appointments = document.getElementById('userAppointmentsList'); this.appointmentsEmpty = document.getElementById('userAppointmentsEmpty');
         this.purchases = document.getElementById('userPurchasesList'); this.purchasesEmpty = document.getElementById('userPurchasesEmpty');
+        this.tabs = Array.from(document.querySelectorAll('[data-record-tab]'));
+        this.panels = Array.from(document.querySelectorAll('[data-record-panel]'));
+        this.tabs.forEach(tab => tab.addEventListener('click', () => this.selectTab(tab.dataset.recordTab)));
+    }
+    selectTab(selected) {
+        this.tabs.forEach(tab => {
+            const active = tab.dataset.recordTab === selected;
+            tab.classList.toggle('is-active', active);
+            tab.setAttribute('aria-selected', String(active));
+        });
+        this.panels.forEach(panel => { panel.hidden = panel.dataset.recordPanel !== selected; });
     }
     async load() { await Promise.all([this.loadReservations('tickets'), this.loadReservations('appointments'), this.loadPurchases()]); }
     async loadReservations(type) {
@@ -419,6 +434,11 @@ class RegistrosUsuario {
             const status = document.createElement('span'); status.className = `user-record-status ${item.status === 'cancelado' ? 'is-canceled' : item.status === 'past' ? 'is-past' : 'is-available'}`;
             status.textContent = item.status === 'cancelado' ? 'Cancelado' : item.status === 'past' ? 'Realizado' : 'Confirmado';
             content.append(title, meta); row.append(content, status);
+            if (item.cancellationReason) {
+                const reason = document.createElement('span'); reason.className = 'user-record-reason';
+                reason.textContent = `${item.cancellationSource === 'Gallery' ? 'Cancelado pela galeria' : 'Cancelado'}: ${item.cancellationReason}`;
+                content.appendChild(reason);
+            }
             if (item.status === 'confirmado') {
                 const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'user-record-cancel'; cancel.textContent = 'Cancelar';
                 cancel.addEventListener('click', async () => {
@@ -440,7 +460,19 @@ class RegistrosUsuario {
             const title = document.createElement('strong'); title.textContent = item.productName;
             const meta = document.createElement('span'); meta.textContent = `${item.quantity} × ${formatCurrency(item.unitPrice)} = ${formatCurrency(item.totalPrice)}`;
             const notice = document.createElement('span'); notice.textContent = item.situation;
-            text.append(title, meta, notice); row.appendChild(text); this.purchases.appendChild(row);
+            text.append(title, meta, notice); row.appendChild(text);
+            if (item.canCancel && item.orderId) {
+                const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'user-record-cancel'; cancel.textContent = 'Cancelar pedido';
+                cancel.addEventListener('click', async () => {
+                    if (!window.confirm('Confirma o cancelamento deste pedido simulado?')) return;
+                    cancel.disabled = true;
+                    const result = await apiFetch(`/user-actions/purchases/${item.orderId}`, { method: 'DELETE' });
+                    if (result.ok) { avisos.success(await readApiMessage(result, 'Pedido cancelado.')); await this.loadPurchases(); }
+                    else { avisos.error(await readApiMessage(result, 'Não foi possível cancelar o pedido.')); cancel.disabled = false; }
+                });
+                row.appendChild(cancel);
+            }
+            this.purchases.appendChild(row);
         });
     }
     clear() { [this.tickets, this.appointments, this.purchases].forEach(item => { if (item) item.innerHTML = ''; }); [this.ticketsEmpty, this.appointmentsEmpty, this.purchasesEmpty].forEach(item => { if (item) item.hidden = false; }); }
@@ -489,6 +521,10 @@ class Carrinho {
         if (!this.items) return; this.items.innerHTML = '';
         values.items.forEach(item => {
             const row = document.createElement('div'); row.className = 'cart-item';
+            if (item.imageUrl) {
+                const image = document.createElement('img'); image.className = 'cart-item-image'; image.src = item.imageUrl; image.alt = item.productName;
+                row.appendChild(image);
+            }
             const detail = document.createElement('div'); detail.className = 'cart-item-details';
             const name = document.createElement('strong'); name.textContent = item.productName;
             const price = document.createElement('span'); price.textContent = `${item.quantity} × ${formatCurrency(item.unitPrice)}`; detail.append(name, price);
@@ -626,7 +662,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!validateRegistrationEmail(registerEmail)) { registerEmail.reportValidity(); registerEmail.focus(); return; }
         const response = await postJson('/auth/register', {
             name: document.getElementById('registerName').value,
-            cpf: document.getElementById('cpfInput').value,
             email: registerEmail.value,
             password: document.getElementById('registerPassword').value,
             registerAsAdministrator: registerAsAdministrator?.checked ?? false,
@@ -639,6 +674,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (adminRegistrationFields) adminRegistrationFields.hidden = true;
         if (adminAccessCode) adminAccessCode.required = false;
         resetAdminCodeVisibility();
+    });
+
+    document.getElementById('requestDeletionBtn')?.addEventListener('click', async () => {
+        if (!window.confirm('Confirma o envio da solicitação de exclusão da conta? O acesso será revogado quando um administrador concluir o pedido.')) return;
+        const response = await postJson('/privacy/deletion-requests', {});
+        if (response.ok) avisos.success(await readApiMessage(response, 'Solicitação de exclusão enviada.'));
+        else avisos.error(await readApiMessage(response, 'Não foi possível enviar a solicitação.'));
     });
 
     document.getElementById('loginForm')?.addEventListener('submit', async event => {

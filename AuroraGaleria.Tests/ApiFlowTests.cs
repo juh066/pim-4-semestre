@@ -45,7 +45,7 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
         using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
         using var response = await SendJson(client, HttpMethod.Post, "/auth/register", new
         {
-            name = "Camila", cpf = "90000000000", email, password = "senha-ficticia-123"
+            name = "Camila", email, password = "senha-ficticia-123"
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -53,17 +53,17 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
     }
 
     [Theory]
-    [InlineData("camila@gmail.com", "90000000001")]
-    [InlineData("camila@outlook.com", "90000000002")]
-    [InlineData("camila@empresa.com.br", "90000000003")]
-    [InlineData("camila@instituicao.org", "90000000004")]
-    [InlineData("camila.souza+galeria@gmail.com", "90000000005")]
-    public async Task RegistrationAcceptsSupportedEmailFormats(string email, string cpf)
+    [InlineData("camila@gmail.com")]
+    [InlineData("camila@outlook.com")]
+    [InlineData("camila@empresa.com.br")]
+    [InlineData("camila@instituicao.org")]
+    [InlineData("camila.souza+galeria@gmail.com")]
+    public async Task RegistrationAcceptsSupportedEmailFormats(string email)
     {
         using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
         using var response = await SendJson(client, HttpMethod.Post, "/auth/register", new
         {
-            name = "Camila", cpf, email, password = "senha-ficticia-123"
+            name = "Camila", email, password = "senha-ficticia-123"
         });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -75,13 +75,13 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
         using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
         using var first = await SendJson(client, HttpMethod.Post, "/auth/register", new
         {
-            name = "Pessoa Um", cpf = "90000000006", email = "Repetido@Empresa.com.br", password = "senha-ficticia-123"
+            name = "Pessoa Um", email = "Repetido@Empresa.com.br", password = "senha-ficticia-123"
         });
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
 
         using var duplicate = await SendJson(client, HttpMethod.Post, "/auth/register", new
         {
-            name = "Pessoa Dois", cpf = "90000000007", email = "  repetido@empresa.com.br  ", password = "senha-ficticia-123"
+            name = "Pessoa Dois", email = "  repetido@empresa.com.br  ", password = "senha-ficticia-123"
         });
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
 
@@ -96,7 +96,7 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
     public async Task VisitorCannotOpenAdministrativeEndpoints()
     {
         using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
-        await RegisterAndLogin(client, $"visitor-{Guid.NewGuid():N}@example.test", "12122222222");
+        await RegisterAndLogin(client, $"visitor-{Guid.NewGuid():N}@example.test");
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/admin")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/user-actions/analytics")).StatusCode);
     }
@@ -146,7 +146,7 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
     public async Task RegistrationLoginCartHistoryAndLogoutWorkWithoutTrustingPostedPrice()
     {
         using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
-        await RegisterAndLogin(client, $"flow-{Guid.NewGuid():N}@example.test", "16899535009");
+        await RegisterAndLogin(client, $"flow-{Guid.NewGuid():N}@example.test");
 
         using var add = await SendJson(client, HttpMethod.Post, "/cart/items", new { productId = 1, quantity = 1, requestId = Guid.NewGuid().ToString(), productName = "Falso", unitPrice = 0.01m });
         Assert.Equal(HttpStatusCode.OK, add.StatusCode);
@@ -174,7 +174,7 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
     public async Task ReservationResponsesUseSimpleMessagesWithoutAcademicNotice()
     {
         using var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
-        await RegisterAndLogin(client, $"reservas-{Guid.NewGuid():N}@example.test", "90000000008");
+        await RegisterAndLogin(client, $"reservas-{Guid.NewGuid():N}@example.test");
 
         using var ticket = await SendJson(client, HttpMethod.Post, "/user-actions/tickets", new
         {
@@ -198,9 +198,9 @@ public class ApiFlowTests : IClassFixture<AuroraWebFactory>
         Assert.Contains("Agendamento cancelado com sucesso.", await cancellation.Content.ReadAsStringAsync());
     }
 
-    private static async Task RegisterAndLogin(HttpClient client, string email, string cpf)
+    private static async Task RegisterAndLogin(HttpClient client, string email)
     {
-        using var registration = await SendJson(client, HttpMethod.Post, "/auth/register", new { name = "Pessoa Teste", cpf, email, password = "senha-ficticia-123" });
+        using var registration = await SendJson(client, HttpMethod.Post, "/auth/register", new { name = "Pessoa Teste", email, password = "senha-ficticia-123" });
         Assert.Equal(HttpStatusCode.OK, registration.StatusCode);
         using var login = await SendJson(client, HttpMethod.Post, "/auth/login", new { email, password = "senha-ficticia-123" });
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);

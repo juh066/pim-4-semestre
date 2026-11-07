@@ -72,6 +72,7 @@
     </div>
 
     <h2>Sessões de visita</h2>
+    <p>Datas e horários usam o Horário de São Paulo.</p>
     <form method="post" action="/admin/sessions" class="admin-form">
         @Html.AntiForgeryToken()
         <label>Exposição
@@ -94,11 +95,68 @@
                 <strong>@session.Exposure?.Titulo</strong>
                 <span>@session.VisitDate.ToString("dd/MM/yyyy") às @session.StartTime.ToString(@"hh\:mm")</span>
                 <span>@session.ReservedQuantity de @session.Capacity vagas ocupadas</span>
-                <span>@(session.IsActive ? "Ativa" : "Inativa")</span>
+                <span>@(session.Capacity - session.ReservedQuantity) vagas disponíveis</span>
+                <span>Estado: @session.Status</span>
+                @if (session.Status is not AuroraGaleria.Models.SessionStatuses.Cancelled and not AuroraGaleria.Models.SessionStatuses.Completed)
+                {
+                    <form method="post" action="/admin/sessions/@session.Id/edit" class="admin-form compact">
+                        @Html.AntiForgeryToken()
+                        <label>Exposição
+                            <select name="ExposureId" required>
+                                @foreach (var exposure in Model.Exposures.Where(item => item.Ativa))
+                                {
+                                    <option value="@exposure.Id" selected="@(exposure.Id == session.ExposureId ? "selected" : null)">@exposure.Titulo</option>
+                                }
+                            </select>
+                        </label>
+                        <label>Data <input name="VisitDate" type="date" value="@session.VisitDate.ToString("yyyy-MM-dd")" required /></label>
+                        <label>Horário <input name="StartTime" type="time" value="@session.StartTime.ToString(@"hh\:mm")" required /></label>
+                        <label>Capacidade <input name="Capacity" type="number" min="@session.ReservedQuantity" value="@session.Capacity" required /></label>
+                        <button type="submit">Salvar sessão</button>
+                    </form>
+                }
                 <form method="post" action="/admin/sessions/@session.Id/toggle">
                     @Html.AntiForgeryToken()
-                    <button type="submit">@(session.IsActive ? "Desativar sessão" : "Reativar sessão")</button>
+                    <button type="submit">@(session.Status == AuroraGaleria.Models.SessionStatuses.Open ? "Encerrar novas reservas" : "Reabrir reservas")</button>
                 </form>
+                @if (session.Status != AuroraGaleria.Models.SessionStatuses.Cancelled)
+                {
+                    <form method="post" action="/admin/sessions/@session.Id/cancel" onsubmit="return confirm('Confirma o cancelamento desta sessão e das reservas relacionadas?');">
+                        @Html.AntiForgeryToken()
+                        <label>Motivo obrigatório <textarea name="Reason" minlength="3" maxlength="500" required></textarea></label>
+                        <button type="submit">Cancelar sessão</button>
+                    </form>
+                }
+                @if (!string.IsNullOrWhiteSpace(session.CancellationReason)) { <p>Motivo: @session.CancellationReason</p> }
+            </article>
+        }
+    </div>
+
+    <h2>Solicitações de exclusão de conta</h2>
+    <div class="admin-list">
+        @if (Model.DeletionRequests.Count == 0) { <p>Nenhuma solicitação pendente.</p> }
+        @foreach (var request in Model.DeletionRequests)
+        {
+            <article class="admin-card">
+                <strong>@request.User?.Name</strong>
+                <span>Solicitada em @request.RequestedAtUtc.ToString("dd/MM/yyyy HH:mm") UTC</span>
+                <form method="post" action="/admin/deletion-requests/@request.Id/complete" onsubmit="return confirm('Confirma a exclusão e anonimização desta conta?');">
+                    @Html.AntiForgeryToken()
+                    <button type="submit">Concluir exclusão</button>
+                </form>
+            </article>
+        }
+    </div>
+
+    <h2>Histórico administrativo</h2>
+    <div class="admin-list">
+        @foreach (var log in Model.AuditLogs)
+        {
+            <article class="admin-card">
+                <strong>@log.Action — @log.EntityType #@log.EntityId</strong>
+                <span>Administrador: @(log.AdministratorId?.ToString() ?? "rotina")</span>
+                <span>@log.OccurredAtUtc.ToString("dd/MM/yyyy HH:mm") UTC</span>
+                @if (!string.IsNullOrWhiteSpace(log.Reason)) { <span>Motivo: @log.Reason</span> }
             </article>
         }
     </div>

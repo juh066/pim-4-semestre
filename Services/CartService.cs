@@ -11,17 +11,19 @@ public interface ICartService
     Task<ServiceResult<CartDto>> AddAsync(int userId, AddCartItemRequest request);
     Task<ServiceResult<CartDto>> RemoveAsync(int userId, int itemId);
     Task<ServiceResult<CheckoutDto>> CheckoutAsync(int userId, CheckoutRequest request);
+    Task<ServiceResult<bool>> CancelOrderAsync(int userId, int orderId);
 }
 
-public record CartLineDto(int Id, int ProductId, string ProductName, decimal UnitPrice, int Quantity, decimal Subtotal);
-public record CartDto(IReadOnlyCollection<CartLineDto> Items, int Count, decimal Total);
-public record CheckoutDto(CartDto Cart, int? OrderId, bool PriceChanged, bool AlreadyProcessed);
+public sealed record CartLineDto(int Id, int ProductId, string ProductName, string ImageUrl, decimal UnitPrice, int Quantity, decimal Subtotal);
+public sealed record CartDto(IReadOnlyCollection<CartLineDto> Items, int Count, decimal Total);
+public sealed record CheckoutDto(CartDto Cart, int? OrderId, bool PriceChanged, bool AlreadyProcessed);
 
 public class CartService(AppDbContext db) : ICartService
 {
     public async Task<CartDto> GetAsync(int userId)
     {
-        var items = await db.CartItems.AsNoTracking().Where(item => item.UserId == userId).OrderBy(item => item.CreatedAt).ToListAsync();
+        var items = await db.CartItems.AsNoTracking().Include(item => item.Product)
+            .Where(item => item.UserId == userId).OrderBy(item => item.CreatedAt).ToListAsync();
         return Map(items);
     }
 
@@ -129,7 +131,7 @@ public class CartService(AppDbContext db) : ICartService
 
         var order = new PurchaseOrder
         {
-            UserId = userId, RequestId = request.RequestId, Status = "Simulated",
+            UserId = userId, RequestId = request.RequestId, Status = PurchaseOrderStatuses.Confirmed,
             TotalPrice = items.Sum(item => item.UnitPrice * item.Quantity), CreatedAt = DateTime.UtcNow,
             Items = items.Select(item => new PurchaseItem
             {
@@ -146,7 +148,21 @@ public class CartService(AppDbContext db) : ICartService
             "Compra registrada com sucesso. Esta operação é uma simulação para fins acadêmicos. Nenhuma cobrança foi realizada.");
     }
 
+    public async Task<ServiceResult<bool>> CancelOrderAsync(int userId, int orderId)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        var order = await db.PurchaseOrders.SingleOrDefaultAsync(item => item.Id == orderId && item.UserId == userId);
+        if (order is null) return ServiceResult<bool>.Fail("not_found", "Pedido não encontrado.");
+        if (order.Status == PurchaseOrderStatuses.Cancelled) return ServiceResult<bool>.Ok(true, "O pedido já estava cancelado.");
+        if (order.Status != PurchaseOrderStatuses.Confirmed) return ServiceResult<bool>.Fail("conflict", "Somente pedidos confirmados podem ser cancelados.");
+        order.Status = PurchaseOrderStatuses.Cancelled;
+        order.CancelledAtUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
+        return ServiceResult<bool>.Ok(true, "Pedido cancelado. Nenhuma operação financeira foi realizada.");
+    }
+
     private static CartDto Map(IReadOnlyCollection<CartItem> items) => new(
-        items.Select(item => new CartLineDto(item.Id, item.ProductId, item.ProductName, item.UnitPrice, item.Quantity, item.UnitPrice * item.Quantity)).ToList(),
+        items.Select(item => new CartLineDto(item.Id, item.ProductId, item.ProductName, item.Product?.ImagemUrl ?? string.Empty, item.UnitPrice, item.Quantity, item.UnitPrice * item.Quantity)).ToList(),
         items.Sum(item => item.Quantity), items.Sum(item => item.UnitPrice * item.Quantity));
 }

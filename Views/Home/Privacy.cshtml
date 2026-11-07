@@ -1,6 +1,16 @@
 ﻿@{
-    ViewData["Title"] = "Privacy Policy";
+    ViewData["Title"] = "Privacidade";
 }
-<h1>@ViewData["Title"]</h1>
-
-<p>Use this page to detail your site's privacy policy.</p>
+<section class="section privacy-page">
+    <h1>Privacidade</h1>
+    <p>Esta página descreve o comportamento implementado nesta aplicação acadêmica.</p>
+    <h2>Dados armazenados e finalidade</h2>
+    <p>O cadastro guarda nome, e-mail, senha protegida por hash, perfil de acesso e identificador interno. Reservas, agendamentos e pedidos simulados guardam os itens, valores, sessões, estados e instantes necessários para executar e demonstrar esses serviços. O sistema não solicita CPF nem dados de cartão.</p>
+    <h2>Acesso</h2>
+    <p>Cada visitante acessa apenas seus próprios registros. Administradores autenticados acessam os cadastros operacionais, solicitações de exclusão e o histórico administrativo necessários à demonstração.</p>
+    <h2>Exclusão da conta</h2>
+    <p>A solicitação é feita na área do usuário. Um administrador conclui o pedido: o acesso é revogado, nome, e-mail e senha deixam de identificar a pessoa, carrinho e chaves auxiliares são eliminados, e reservas futuras são canceladas com liberação das vagas. Históricos necessários à integridade permanecem anonimizados.</p>
+    <h2>Retenção</h2>
+    <p>Os dados pessoais da demonstração devem ser eliminados até 30 dias após a avaliação final. Essa é uma decisão do projeto, não um prazo legal obrigatório. A limpeza não é executada enquanto a data da avaliação não estiver configurada. Evidências acadêmicas podem permanecer apenas de forma anonimizada.</p>
+    <p>Cópias de segurança, inclusive as mantidas fora da aplicação, precisam seguir o mesmo prazo. A aplicação não consegue apagar cópias armazenadas externamente; a equipe deve localizá-las e eliminá-las manualmente. O backup anterior à remoção do CPF contém esse dado e não deve ser mantido indefinidamente.</p>
+</section>

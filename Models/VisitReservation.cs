@@ -15,6 +15,9 @@ public class VisitReservation
     public DateTime VisitDate { get; set; }
     public TimeSpan StartTime { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? CancelledAtUtc { get; set; }
+    [MaxLength(20)] public string? CancellationSource { get; set; }
+    [MaxLength(500)] public string? CancellationReason { get; set; }
     public User? User { get; set; }
     public VisitSession? VisitSession { get; set; }
 }
@@ -29,4 +32,10 @@ public static class ReservationStatuses
 {
     public const string Confirmed = "Confirmed";
     public const string Cancelled = "Cancelled";
+}
+
+public static class CancellationSources
+{
+    public const string Visitor = "Visitor";
+    public const string Gallery = "Gallery";
 }

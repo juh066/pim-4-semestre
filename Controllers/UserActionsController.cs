@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuroraGaleria.Controllers;
 
 [ApiController, Authorize, Route("user-actions")]
-public class UserActionsController(AppDbContext db, IReservationService reservations) : ControllerBase
+public class UserActionsController(AppDbContext db, IReservationService reservations, ICartService cart, IGalleryClock clock) : ControllerBase
 {
     [HttpGet("tickets")]
     public Task<IActionResult> Tickets() => ListReservations(ReservationTypes.Ticket);
@@ -39,7 +39,15 @@ public class UserActionsController(AppDbContext db, IReservationService reservat
         if (result.Code == "not_found")
         {
             var legacy = await db.UserAppointments.SingleOrDefaultAsync(item => item.Id == id && item.UserId == UserId);
-            if (legacy is not null && !string.Equals(legacy.Status, "Cancelado", StringComparison.OrdinalIgnoreCase))
+            if (legacy is not null && string.Equals(legacy.Status, "Cancelado", StringComparison.OrdinalIgnoreCase))
+            {
+                return Ok(new { message = "Agendamento já estava cancelado." });
+            }
+            if (legacy is not null && legacy.AppointmentDate.Date <= clock.GalleryNow.Date)
+            {
+                return Conflict(new { message = "O horário do agendamento já começou ou não pode ser verificado com segurança." });
+            }
+            if (legacy is not null)
             {
                 legacy.Status = "Cancelado";
                 await db.SaveChangesAsync();
@@ -57,7 +65,9 @@ public class UserActionsController(AppDbContext db, IReservationService reservat
         var current = orders.SelectMany(order => order.Items.Select(item => new
         {
             id = item.Id, orderId = order.Id, item.ProductName, item.Quantity, item.UnitPrice, item.TotalPrice,
-            status = "Confirmada", situation = "Compra registrada", createdAt = order.CreatedAt.ToString("yyyy-MM-dd")
+            status = order.Status == PurchaseOrderStatuses.Cancelled ? "Cancelada" : "Confirmada",
+            situation = order.Status == PurchaseOrderStatuses.Cancelled ? "Compra simulada cancelada" : "Compra registrada",
+            canCancel = order.Status == PurchaseOrderStatuses.Confirmed, createdAt = order.CreatedAt.ToString("yyyy-MM-dd")
         })).Cast<object>().ToList();
         var legacy = await db.UserPurchases.AsNoTracking().Where(item => item.UserId == UserId).OrderByDescending(item => item.CreatedAt).ToListAsync();
         current.AddRange(legacy.Select(item => (object)new
@@ -67,6 +77,14 @@ public class UserActionsController(AppDbContext db, IReservationService reservat
             item.TotalPrice, item.Status, situation = "Registro histórico legado", createdAt = item.CreatedAt.ToString("yyyy-MM-dd")
         }));
         return Ok(current);
+    }
+
+    [HttpDelete("purchases/{id:int}")]
+    public async Task<IActionResult> CancelPurchase(int id)
+    {
+        var result = await cart.CancelOrderAsync(UserId, id);
+        if (result.Success) return Ok(new { message = result.Message });
+        return result.Code == "not_found" ? NotFound(new { message = result.Message }) : Conflict(new { message = result.Message });
     }
 
     [Authorize(Roles = UserRoles.Administrator), HttpGet("analytics")]
@@ -85,7 +103,7 @@ public class UserActionsController(AppDbContext db, IReservationService reservat
 
     private async Task<IActionResult> ListReservations(string type)
     {
-        var today = DateTime.Today;
+        var today = clock.GalleryNow.Date;
         var items = await db.VisitReservations.AsNoTracking().Where(item => item.UserId == UserId && item.Type == type)
             .OrderByDescending(item => item.VisitDate).ToListAsync();
         items = items.OrderByDescending(item => item.VisitDate).ThenBy(item => item.StartTime).ToList();
@@ -93,7 +111,8 @@ public class UserActionsController(AppDbContext db, IReservationService reservat
         {
             item.Id, eventName = item.ExposureName, date = item.VisitDate.ToString("yyyy-MM-dd"),
             time = item.StartTime.ToString(@"hh\:mm"), item.Quantity,
-            status = item.Status == ReservationStatuses.Cancelled ? "cancelado" : item.VisitDate.Date < today ? "past" : "confirmado"
+            status = item.Status == ReservationStatuses.Cancelled ? "cancelado" : clock.SessionStart(item.VisitDate, item.StartTime) <= clock.GalleryNow ? "past" : "confirmado",
+            cancellationSource = item.CancellationSource, cancellationReason = item.CancellationReason
         }).Cast<object>().ToList();
         if (type == ReservationTypes.Ticket)
         {

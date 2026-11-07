@@ -2,27 +2,30 @@ using Microsoft.AspNetCore.Mvc;
 using AuroraGaleria.Models;
 using AuroraGaleria.Data;
 using Microsoft.EntityFrameworkCore;
+using AuroraGaleria.Services;
 
 namespace AuroraGaleria.Controllers
 {
-    public class HomeController(AppDbContext db) : Controller
+    public class HomeController(AppDbContext db, IGalleryClock clock) : Controller
     {
         [HttpGet("/sessions/{id:int}/availability")]
         public async Task<IActionResult> SessionAvailability(int id)
         {
-            var today = DateTime.Today;
+            var today = clock.GalleryNow.Date;
             var session = await db.VisitSessions.AsNoTracking()
                 .Include(item => item.Exposure)
                 .SingleOrDefaultAsync(item => item.Id == id);
 
             var isAvailable = session is not null &&
                 session.IsActive &&
+                session.Status == SessionStatuses.Open &&
                 session.Exposure is not null &&
                 session.Exposure.Ativa &&
                 session.VisitDate >= today &&
                 session.VisitDate >= session.Exposure.Inicio &&
                 session.VisitDate <= session.Exposure.Fim &&
                 session.ReservedQuantity < session.Capacity;
+            isAvailable = isAvailable && clock.SessionStart(session!.VisitDate, session.StartTime) > clock.GalleryNow;
 
             return Ok(new
             {
@@ -34,10 +37,11 @@ namespace AuroraGaleria.Controllers
 
         public async Task<IActionResult> Index()
         {
-            var today = DateTime.Today;
+            var today = clock.GalleryNow.Date;
             var sessions = await db.VisitSessions.AsNoTracking().Include(item => item.Exposure)
-                .Where(item => item.IsActive && item.Exposure!.Ativa && item.VisitDate >= today && item.VisitDate >= item.Exposure.Inicio && item.VisitDate <= item.Exposure.Fim)
+                .Where(item => item.IsActive && item.Status == SessionStatuses.Open && item.Exposure!.Ativa && item.VisitDate >= today && item.VisitDate >= item.Exposure.Inicio && item.VisitDate <= item.Exposure.Fim)
                 .OrderBy(item => item.VisitDate).ToListAsync();
+            sessions = sessions.Where(item => clock.SessionStart(item.VisitDate, item.StartTime) > clock.GalleryNow).ToList();
             sessions = sessions.OrderBy(item => item.VisitDate).ThenBy(item => item.StartTime).ToList();
             var model = new HomeViewModel
             {
@@ -48,5 +52,8 @@ namespace AuroraGaleria.Controllers
             };
             return View(model);
         }
+
+        [HttpGet("/privacidade")]
+        public IActionResult Privacy() => View();
     }
 }

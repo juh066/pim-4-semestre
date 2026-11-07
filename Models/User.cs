@@ -11,10 +11,6 @@ namespace AuroraGaleria.Models
         public string Name { get; set; } = string.Empty;
 
         [Required]
-        [MaxLength(11)]
-        public string Cpf { get; set; } = string.Empty;
-
-        [Required]
         [MaxLength(256)]
         public string Email { get; set; } = string.Empty;
 
@@ -27,6 +23,11 @@ namespace AuroraGaleria.Models
         [Required]
         [MaxLength(20)]
         public string Role { get; set; } = UserRoles.Visitor;
+
+        public bool IsActive { get; set; } = true;
+
+        [Required, MaxLength(64)]
+        public string SessionVersion { get; set; } = Guid.NewGuid().ToString("N");
     }
 
     public static class UserRoles

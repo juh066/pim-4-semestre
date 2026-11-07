@@ -579,16 +579,66 @@ header {
     border: 1px solid rgba(28,28,30,0.1);
 }
 
+.account-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.gallery-time-zone {
+    margin: 0 0 10px;
+    color: #5E5E63;
+    font-size: 0.85rem;
+}
+
+.user-record-reason {
+    color: #8A5A20;
+    font-size: 0.88rem;
+}
+
+.privacy-page {
+    max-width: 850px;
+    margin: 0 auto;
+}
+
+.privacy-page h2 {
+    margin-top: 28px;
+    color: #1C1C1E;
+}
+
 .account-summary button {
     width: auto;
     padding: 10px 18px;
 }
 
 .user-records-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
+    display: block;
     margin-top: 18px;
+}
+
+.user-record-tabs {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+    overflow-x: auto;
+}
+
+.user-record-tab {
+    width: auto;
+    padding: 10px 16px;
+    flex: 0 0 auto;
+    background: #FFFFFF;
+    color: #1C1C1E;
+    border: 1px solid rgba(28,28,30,0.16);
+}
+
+.user-record-tab:hover,
+.user-record-tab:focus-visible,
+.user-record-tab.is-active {
+    background: #C9A84C;
+    color: #1C1C1E;
+    border-color: #C9A84C;
 }
 
 .user-records-panel {
@@ -596,6 +646,10 @@ header {
     border: 1px solid rgba(28,28,30,0.1);
     border-radius: 8px;
     padding: 18px;
+}
+
+.user-records-panel[hidden] {
+    display: none;
 }
 
 .user-records-panel h3 {
@@ -771,16 +825,28 @@ header {
 
 .cart-item {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 14px;
     padding: 16px 0;
     border-bottom: 1px solid rgba(28,28,30,0.1);
 }
 
+.cart-item-image {
+    width: 58px;
+    height: 58px;
+    flex: 0 0 58px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #F5F0E8;
+}
+
 .cart-item-details {
     display: flex;
     flex-direction: column;
     gap: 5px;
+    flex: 1;
+    min-width: 0;
 }
 
 .cart-item-details span,

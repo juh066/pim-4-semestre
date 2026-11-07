@@ -23,6 +23,8 @@ namespace AuroraGaleria.Data
         public DbSet<PurchaseOrder> PurchaseOrders { get; set; }
         public DbSet<PurchaseItem> PurchaseItems { get; set; }
         public DbSet<IdempotencyRecord> IdempotencyRecords { get; set; }
+        public DbSet<AccountDeletionRequest> AccountDeletionRequests { get; set; }
+        public DbSet<AdminAuditLog> AdminAuditLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -32,12 +34,11 @@ namespace AuroraGaleria.Data
             {
                 entity.ToTable("Users");
                 entity.HasIndex(user => user.Email).IsUnique();
-                entity.HasIndex(user => user.Cpf).IsUnique();
                 entity.Property(user => user.Name).HasMaxLength(100).IsRequired();
-                entity.Property(user => user.Cpf).HasMaxLength(11).IsRequired();
                 entity.Property(user => user.Email).HasMaxLength(256).IsRequired();
                 entity.Property(user => user.PasswordHash).HasMaxLength(200).IsRequired();
                 entity.Property(user => user.Role).HasMaxLength(20).IsRequired();
+                entity.Property(user => user.SessionVersion).HasMaxLength(64).IsRequired();
             });
 
             modelBuilder.Entity<Exposicao>(entity =>
@@ -83,6 +84,8 @@ namespace AuroraGaleria.Data
             {
                 entity.ToTable("visit_sessions");
                 entity.HasIndex(item => new { item.ExposureId, item.VisitDate, item.StartTime }).IsUnique();
+                entity.Property(item => item.Status).HasMaxLength(20).IsRequired();
+                entity.Property(item => item.CancellationReason).HasMaxLength(500);
                 entity.HasOne(item => item.Exposure)
                     .WithMany(item => item.Sessoes)
                     .HasForeignKey(item => item.ExposureId)
@@ -97,6 +100,8 @@ namespace AuroraGaleria.Data
                 entity.Property(item => item.Status).HasMaxLength(20).IsRequired();
                 entity.Property(item => item.RequestId).HasMaxLength(64).IsRequired();
                 entity.Property(item => item.ExposureName).HasMaxLength(140).IsRequired();
+                entity.Property(item => item.CancellationSource).HasMaxLength(20);
+                entity.Property(item => item.CancellationReason).HasMaxLength(500);
                 entity.HasOne(item => item.User).WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(item => item.VisitSession).WithMany(item => item.Reservations).HasForeignKey(item => item.VisitSessionId).OnDelete(DeleteBehavior.Restrict);
             });
@@ -122,6 +127,22 @@ namespace AuroraGaleria.Data
             {
                 entity.ToTable("idempotency_records");
                 entity.HasIndex(item => new { item.UserId, item.Scope, item.RequestId }).IsUnique();
+            });
+
+            modelBuilder.Entity<AccountDeletionRequest>(entity =>
+            {
+                entity.ToTable("account_deletion_requests");
+                entity.HasIndex(item => new { item.UserId, item.Status });
+                entity.Property(item => item.Status).HasMaxLength(20).IsRequired();
+                entity.HasOne(item => item.User).WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<AdminAuditLog>(entity =>
+            {
+                entity.ToTable("admin_audit_logs");
+                entity.Property(item => item.Action).HasMaxLength(80).IsRequired();
+                entity.Property(item => item.EntityType).HasMaxLength(80).IsRequired();
+                entity.Property(item => item.Reason).HasMaxLength(500);
             });
 
             modelBuilder.Entity<UserTicket>(entity =>

@@ -29,9 +29,18 @@ public class SessionAdminRequest
     [Range(1, 10000)] public int Capacity { get; set; }
 }
 
+public sealed class UpdateSessionAdminRequest : SessionAdminRequest { }
+
+public sealed class CancelSessionAdminRequest
+{
+    [Required, MaxLength(500), MinLength(3)] public string Reason { get; set; } = string.Empty;
+}
+
 public class AdminDashboardViewModel
 {
     public IReadOnlyList<Exposicao> Exposures { get; init; } = [];
     public IReadOnlyList<Produto> Products { get; init; } = [];
     public IReadOnlyList<VisitSession> Sessions { get; init; } = [];
+    public IReadOnlyList<AccountDeletionRequest> DeletionRequests { get; init; } = [];
+    public IReadOnlyList<AdminAuditLog> AuditLogs { get; init; } = [];
 }

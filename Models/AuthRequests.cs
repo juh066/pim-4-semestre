@@ -8,10 +8,6 @@ namespace AuroraGaleria.Models
         [MaxLength(100)]
         public string Name { get; set; } = string.Empty;
 
-        [Required]
-        [RegularExpression(@"^\d{11}$", ErrorMessage = "Informe um CPF com 11 dígitos.")]
-        public string Cpf { get; set; } = string.Empty;
-
         public string Email { get; set; } = string.Empty;
 
         [Required]

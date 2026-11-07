@@ -32,7 +32,6 @@ namespace AuroraGaleria.Controllers
             try
             {
                 request.Email = EmailAddressValidator.Normalize(request.Email);
-                request.Cpf = request.Cpf.Trim();
                 request.Name = request.Name.Trim();
 
                 if (!EmailAddressValidator.IsValid(request.Email))
@@ -42,7 +41,7 @@ namespace AuroraGaleria.Controllers
 
                 if (!ModelState.IsValid)
                 {
-                    return BadRequest(new { message = "Preencha nome, CPF, e-mail e senha corretamente." });
+                    return BadRequest(new { message = "Preencha nome, e-mail e senha corretamente." });
                 }
 
                 var role = UserRoles.Visitor;
@@ -73,19 +72,15 @@ namespace AuroraGaleria.Controllers
                     return Conflict(new { message = "Este e-mail já está cadastrado." });
                 }
 
-                if (await _db.Users.AnyAsync(user => user.Cpf == request.Cpf))
-                {
-                    return Conflict(new { message = "Este CPF já está cadastrado." });
-                }
-
                 var user = new User
                 {
                     Name = request.Name,
-                    Cpf = request.Cpf,
                     Email = request.Email,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                     Role = role,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    IsActive = true,
+                    SessionVersion = Guid.NewGuid().ToString("N")
                 };
 
                 _db.Users.Add(user);
@@ -114,7 +109,7 @@ namespace AuroraGaleria.Controllers
                 var email = EmailAddressValidator.Normalize(request.Email);
                 var user = await _db.Users.SingleOrDefaultAsync(account => account.Email == email);
 
-                if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+                if (user is null || !user.IsActive || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                 {
                     return Unauthorized(new { message = "E-mail ou senha incorretos." });
                 }
@@ -124,7 +119,8 @@ namespace AuroraGaleria.Controllers
                     new(ClaimTypes.NameIdentifier, user.Id.ToString()),
                     new(ClaimTypes.Name, user.Name),
                     new(ClaimTypes.Email, user.Email),
-                    new(ClaimTypes.Role, user.Role)
+                    new(ClaimTypes.Role, user.Role),
+                    new("session_version", user.SessionVersion)
                 };
 
                 var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);

@@ -2,11 +2,12 @@ using AuroraGaleria.Models;
 using AuroraGaleria.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace AuroraGaleria.Controllers;
 
 [Authorize(Roles = UserRoles.Administrator), Route("admin")]
-public class AdminController(IAdminCatalogService catalog) : Controller
+public class AdminController(IAdminCatalogService catalog, IPrivacyService privacy) : Controller
 {
     [HttpGet("")]
     public async Task<IActionResult> Index() => View(await catalog.GetDashboardAsync());
@@ -37,11 +38,29 @@ public class AdminController(IAdminCatalogService catalog) : Controller
 
     [HttpPost("sessions")]
     public async Task<IActionResult> CreateSession(SessionAdminRequest request) =>
-        await Handle(await catalog.CreateSessionAsync(request));
+        await Handle(await catalog.CreateSessionAsync(UserId, request));
+
+    [HttpPost("sessions/{id:int}/edit")]
+    public async Task<IActionResult> EditSession(int id, UpdateSessionAdminRequest request) =>
+        await Handle(await catalog.UpdateSessionAsync(UserId, id, request));
 
     [HttpPost("sessions/{id:int}/toggle")]
     public async Task<IActionResult> ToggleSession(int id) =>
-        await Handle(await catalog.ToggleSessionAsync(id));
+        await Handle(await catalog.ToggleSessionAsync(UserId, id));
+
+    [HttpPost("sessions/{id:int}/cancel")]
+    public async Task<IActionResult> CancelSession(int id, CancelSessionAdminRequest request) =>
+        await Handle(await catalog.CancelSessionAsync(UserId, id, request.Reason));
+
+    [HttpPost("deletion-requests/{id:int}/complete")]
+    public async Task<IActionResult> CompleteDeletion(int id)
+    {
+        var result = await privacy.CompleteDeletionAsync(id, UserId);
+        if (!result.Success) TempData["AdminError"] = result.Message;
+        return RedirectToAction(nameof(Index));
+    }
+
+    private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     private Task<IActionResult> Handle(ServiceResult<int> result)
     {

@@ -15,6 +15,8 @@ public static class DatabaseInitializer
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
         await EnsureColumnAsync(db, "Users", "Role", "TEXT NOT NULL DEFAULT 'Visitor'");
+        await EnsureColumnAsync(db, "Users", "IsActive", "INTEGER NOT NULL DEFAULT 1");
+        await EnsureColumnAsync(db, "Users", "SessionVersion", "TEXT NOT NULL DEFAULT ''");
         await EnsureColumnAsync(db, "Exposicoes", "StartDate", "TEXT NOT NULL DEFAULT '0001-01-01 00:00:00'");
         await EnsureColumnAsync(db, "Exposicoes", "EndDate", "TEXT NOT NULL DEFAULT '0001-01-01 00:00:00'");
         await EnsureColumnAsync(db, "Exposicoes", "IsActive", "INTEGER NOT NULL DEFAULT 1");
@@ -24,6 +26,19 @@ public static class DatabaseInitializer
         {
             await db.Database.ExecuteSqlRawAsync(command);
         }
+
+        await EnsureColumnAsync(db, "visit_sessions", "Status", "TEXT NOT NULL DEFAULT 'Open'");
+        await EnsureColumnAsync(db, "visit_sessions", "CancellationReason", "TEXT NULL");
+        await EnsureColumnAsync(db, "visit_sessions", "CancelledAtUtc", "TEXT NULL");
+        await EnsureColumnAsync(db, "visit_reservations", "CancelledAtUtc", "TEXT NULL");
+        await EnsureColumnAsync(db, "visit_reservations", "CancellationSource", "TEXT NULL");
+        await EnsureColumnAsync(db, "visit_reservations", "CancellationReason", "TEXT NULL");
+        await EnsureColumnAsync(db, "purchase_orders", "CancelledAtUtc", "TEXT NULL");
+
+        await db.Database.ExecuteSqlRawAsync("UPDATE Users SET SessionVersion = lower(hex(randomblob(16))) WHERE SessionVersion = '';");
+        await db.Database.ExecuteSqlRawAsync("UPDATE visit_sessions SET Status = CASE WHEN IsActive = 0 THEN 'Closed' ELSE 'Open' END WHERE Status IS NULL OR Status = '';");
+        await db.Database.ExecuteSqlRawAsync("UPDATE purchase_orders SET Status = 'Confirmed' WHERE Status = 'Simulated';");
+        await EnsureCpfRemovedAsync(db);
 
         foreach (var (table, command) in LegacyIssueCommands)
         {
@@ -42,7 +57,29 @@ public static class DatabaseInitializer
         await db.Database.ExecuteSqlRawAsync(
             "INSERT OR IGNORE INTO schema_migrations (Version, AppliedAt) VALUES (2, {0})",
             DateTime.UtcNow);
+        await db.Database.ExecuteSqlRawAsync(
+            "INSERT OR IGNORE INTO schema_migrations (Version, AppliedAt) VALUES (3, {0})",
+            DateTime.UtcNow);
         await transaction.CommitAsync();
+    }
+
+    private static async Task EnsureCpfRemovedAsync(AppDbContext db)
+    {
+        var connection = db.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open) await connection.OpenAsync();
+        var hasCpf = false;
+        await using (var check = connection.CreateCommand())
+        {
+            check.CommandText = "PRAGMA table_info(\"Users\")";
+            await using var reader = await check.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                if (string.Equals(reader.GetString(1), "Cpf", StringComparison.OrdinalIgnoreCase)) { hasCpf = true; break; }
+            }
+        }
+        if (!hasCpf) return;
+        await db.Database.ExecuteSqlRawAsync("DROP INDEX IF EXISTS IX_Users_Cpf;");
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE Users DROP COLUMN Cpf;");
     }
 
     private static async Task EnsureColumnAsync(AppDbContext db, string table, string column, string definition)
@@ -129,7 +166,7 @@ public static class DatabaseInitializer
             await db.SaveChangesAsync();
         }
 
-        logger.LogInformation("Banco atualizado para o esquema PIM IV sem recriação. Versão de esquema: 1.");
+        logger.LogInformation("Banco atualizado para o esquema PIM IV sem recriação. Versão de esquema: 3.");
     }
 
     private static Task RecordMigrationIssueAsync(AppDbContext db, string entity, int legacyId, string description)
@@ -192,8 +229,8 @@ public static class DatabaseInitializer
                 var date = firstDate.AddDays(offset);
                 if (date > exposure.Fim.Date) break;
                 db.VisitSessions.AddRange(
-                    new VisitSession { ExposureId = exposure.Id, VisitDate = date, StartTime = new TimeSpan(10, 0, 0), Capacity = 40, IsActive = true },
-                    new VisitSession { ExposureId = exposure.Id, VisitDate = date, StartTime = new TimeSpan(14, 0, 0), Capacity = 40, IsActive = true });
+                    new VisitSession { ExposureId = exposure.Id, VisitDate = date, StartTime = new TimeSpan(10, 0, 0), Capacity = 40, IsActive = true, Status = SessionStatuses.Open },
+                    new VisitSession { ExposureId = exposure.Id, VisitDate = date, StartTime = new TimeSpan(14, 0, 0), Capacity = 40, IsActive = true, Status = SessionStatuses.Open });
             }
         }
 
@@ -237,7 +274,10 @@ public static class DatabaseInitializer
             CONSTRAINT FK_purchase_items_purchase_orders_PurchaseOrderId FOREIGN KEY (PurchaseOrderId) REFERENCES purchase_orders (Id) ON DELETE CASCADE,
             CONSTRAINT FK_purchase_items_Produtos_ProductId FOREIGN KEY (ProductId) REFERENCES Produtos (Id) ON DELETE SET NULL);
         """,
-        "CREATE TABLE IF NOT EXISTS idempotency_records (Id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, UserId INTEGER NOT NULL, Scope TEXT NOT NULL, RequestId TEXT NOT NULL, ResultId INTEGER NULL, CreatedAt TEXT NOT NULL, UNIQUE(UserId, Scope, RequestId));"
+        "CREATE TABLE IF NOT EXISTS idempotency_records (Id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, UserId INTEGER NOT NULL, Scope TEXT NOT NULL, RequestId TEXT NOT NULL, ResultId INTEGER NULL, CreatedAt TEXT NOT NULL, UNIQUE(UserId, Scope, RequestId));",
+        "CREATE TABLE IF NOT EXISTS account_deletion_requests (Id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, UserId INTEGER NOT NULL, Status TEXT NOT NULL, RequestedAtUtc TEXT NOT NULL, CompletedAtUtc TEXT NULL, CompletedByAdministratorId INTEGER NULL, CONSTRAINT FK_account_deletion_requests_Users_UserId FOREIGN KEY (UserId) REFERENCES Users (Id) ON DELETE RESTRICT);",
+        "CREATE INDEX IF NOT EXISTS IX_account_deletion_requests_UserId_Status ON account_deletion_requests (UserId, Status);",
+        "CREATE TABLE IF NOT EXISTS admin_audit_logs (Id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, AdministratorId INTEGER NULL, Action TEXT NOT NULL, EntityType TEXT NOT NULL, EntityId INTEGER NOT NULL, OccurredAtUtc TEXT NOT NULL, Reason TEXT NULL, PreviousValues TEXT NULL, NewValues TEXT NULL);"
     };
 
     private static readonly (string Table, string Command)[] LegacyIssueCommands =

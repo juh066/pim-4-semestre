@@ -11,7 +11,7 @@ public interface IReservationService
     Task<ServiceResult<bool>> CancelAsync(int userId, int reservationId);
 }
 
-public class ReservationService(AppDbContext db, TimeProvider timeProvider) : IReservationService
+public sealed class ReservationService(AppDbContext db, IGalleryClock clock) : IReservationService
 {
     public async Task<ServiceResult<VisitReservation>> ReserveAsync(int userId, int sessionId, int quantity, string type, string requestId)
     {
@@ -28,15 +28,17 @@ public class ReservationService(AppDbContext db, TimeProvider timeProvider) : IR
         }
 
         var session = await db.VisitSessions.Include(item => item.Exposure).SingleOrDefaultAsync(item => item.Id == sessionId);
-        var today = timeProvider.GetLocalNow().Date;
-        if (session?.Exposure is null || !session.IsActive || !session.Exposure.Ativa)
+        var today = clock.GalleryNow.Date;
+        if (session?.Exposure is null || !session.IsActive || session.Status != SessionStatuses.Open || !session.Exposure.Ativa)
         {
-            return ServiceResult<VisitReservation>.Fail("not_found", "Sessão não encontrada ou indisponível.");
+            return ServiceResult<VisitReservation>.Fail("closed", "As reservas para esta sessão estão encerradas.");
         }
         if (session.VisitDate.Date < today || session.VisitDate.Date < session.Exposure.Inicio.Date || session.VisitDate.Date > session.Exposure.Fim.Date)
         {
             return ServiceResult<VisitReservation>.Fail("invalid_date", "Não é possível reservar uma data passada ou fora do período da exposição.");
         }
+        if (clock.SessionStart(session.VisitDate, session.StartTime) <= clock.GalleryNow)
+            return ServiceResult<VisitReservation>.Fail("started", "Esta sessão já começou e não aceita novas reservas.");
 
         var affected = await db.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE visit_sessions SET ReservedQuantity = ReservedQuantity + {quantity} WHERE Id = {sessionId} AND IsActive = 1 AND ReservedQuantity + {quantity} <= Capacity");
@@ -50,7 +52,7 @@ public class ReservationService(AppDbContext db, TimeProvider timeProvider) : IR
             UserId = userId, VisitSessionId = session.Id, Type = type, Quantity = quantity,
             Status = ReservationStatuses.Confirmed, RequestId = requestId,
             ExposureName = session.Exposure.Titulo, VisitDate = session.VisitDate,
-            StartTime = session.StartTime, CreatedAt = DateTime.UtcNow
+            StartTime = session.StartTime, CreatedAt = clock.UtcNow.UtcDateTime
         };
         db.VisitReservations.Add(reservation);
         await db.SaveChangesAsync();
@@ -70,6 +72,8 @@ public class ReservationService(AppDbContext db, TimeProvider timeProvider) : IR
         {
             return ServiceResult<bool>.Ok(true, "Reserva já estava cancelada.");
         }
+        if (clock.SessionStart(reservation.VisitDate, reservation.StartTime) <= clock.GalleryNow)
+            return ServiceResult<bool>.Fail("started", "Esta sessão já começou e não pode mais ser cancelada.");
 
         var affected = await db.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE visit_sessions SET ReservedQuantity = ReservedQuantity - {reservation.Quantity} WHERE Id = {reservation.VisitSessionId} AND ReservedQuantity >= {reservation.Quantity}");
@@ -79,6 +83,9 @@ public class ReservationService(AppDbContext db, TimeProvider timeProvider) : IR
         }
 
         reservation.Status = ReservationStatuses.Cancelled;
+        reservation.CancelledAtUtc = clock.UtcNow.UtcDateTime;
+        reservation.CancellationSource = CancellationSources.Visitor;
+        reservation.CancellationReason = null;
         await db.SaveChangesAsync();
         await tx.CommitAsync();
         return ServiceResult<bool>.Ok(true);
