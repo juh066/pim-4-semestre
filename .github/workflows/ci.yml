@@ -1,0 +1,72 @@
+name: Integração contínua
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Compilar e testar no Windows
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+
+    steps:
+      - name: Obter código-fonte
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Confirmar SQL Server LocalDB
+        shell: pwsh
+        run: |
+          $localDb = Get-Command SqlLocalDB.exe -ErrorAction Stop
+          Write-Host "LocalDB encontrado em $($localDb.Source)"
+          $instances = & SqlLocalDB.exe info
+          if ($instances -notcontains 'MSSQLLocalDB') {
+            & SqlLocalDB.exe create MSSQLLocalDB
+          }
+          & SqlLocalDB.exe start MSSQLLocalDB
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Não foi possível iniciar MSSQLLocalDB. Os testes SQL Server não serão ignorados.'
+          }
+
+      - name: Restaurar dependências
+        run: dotnet restore AuroraGaleria.Tests/AuroraGaleria.Tests.csproj
+
+      - name: Compilar
+        run: dotnet build AuroraGaleria.Tests/AuroraGaleria.Tests.csproj --configuration Release --no-restore
+
+      - name: Executar todos os testes
+        run: dotnet test AuroraGaleria.Tests/AuroraGaleria.Tests.csproj --configuration Release --no-build
+
+  validate-container:
+    name: Validar imagem Docker
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Obter código-fonte
+        uses: actions/checkout@v4
+
+      - name: Preparar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Construir sem publicar
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: galeria-aurora:ci

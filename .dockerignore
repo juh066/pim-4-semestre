@@ -1,0 +1,17 @@
+.git
+.github
+.vscode
+.vs
+**/bin
+**/obj
+AuroraGaleria.Tests
+backups
+database
+docs
+DataProtectionKeys
+*.db
+*.db-shm
+*.db-wal
+*.user
+*.suo
+appsettings.*.local.json

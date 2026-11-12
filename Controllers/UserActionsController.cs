@@ -90,7 +90,10 @@ public class UserActionsController(AppDbContext db, IReservationService reservat
     [Authorize(Roles = UserRoles.Administrator), HttpGet("analytics")]
     public async Task<IActionResult> Analytics()
     {
-        var sales = await db.PurchaseItems.AsNoTracking().GroupBy(item => item.ProductName)
+        var sales = await db.PurchaseOrders.AsNoTracking()
+            .Where(order => order.Status == PurchaseOrderStatuses.Confirmed)
+            .SelectMany(order => order.Items)
+            .GroupBy(item => item.ProductName)
             .Select(group => new { Produto = group.Key, Quantidade = group.Sum(item => item.Quantity), Receita = group.Sum(item => item.TotalPrice) })
             .OrderByDescending(item => item.Quantidade).ToListAsync();
         var tickets = await db.VisitReservations.AsNoTracking()

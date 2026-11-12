@@ -50,6 +50,64 @@ public class AdminRegistrationTests
         Assert.Contains("href=\"/#lojinha\"", administrationHtml);
     }
 
+    [Fact]
+    public async Task CancelledPurchaseLeavesSalesAnalyticsButRemainsInHistory()
+    {
+        using var factory = EnabledFactory();
+        using var visitor = factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var administrator = factory.CreateClient(new() { AllowAutoRedirect = false });
+        var suffix = Guid.NewGuid().ToString("N");
+        var visitorEmail = $"analytics-visitor-{suffix}@example.test";
+        var administratorEmail = $"analytics-admin-{suffix}@example.test";
+
+        using var visitorRegistration = await Register(visitor, visitorEmail);
+        Assert.Equal(HttpStatusCode.OK, visitorRegistration.StatusCode);
+        using var visitorLogin = await Login(visitor, visitorEmail);
+        Assert.Equal(HttpStatusCode.OK, visitorLogin.StatusCode);
+
+        using var administratorRegistration = await Register(administrator, administratorEmail, true, "123");
+        Assert.Equal(HttpStatusCode.OK, administratorRegistration.StatusCode);
+        using var administratorLogin = await Login(administrator, administratorEmail);
+        Assert.Equal(HttpStatusCode.OK, administratorLogin.StatusCode);
+
+        using var add = await SendJson(visitor, HttpMethod.Post, "/cart/items", new
+        {
+            productId = 1, quantity = 2, requestId = Guid.NewGuid().ToString("N")
+        });
+        Assert.Equal(HttpStatusCode.OK, add.StatusCode);
+        var cart = await add.Content.ReadFromJsonAsync<JsonElement>();
+        var cartItem = cart.GetProperty("items")[0];
+        var productName = cartItem.GetProperty("productName").GetString();
+        var expectedQuantity = cartItem.GetProperty("quantity").GetInt32();
+        var expectedRevenue = cartItem.GetProperty("subtotal").GetDecimal();
+
+        using var checkout = await SendJson(visitor, HttpMethod.Post, "/cart/checkout", new
+        {
+            requestId = Guid.NewGuid().ToString("N")
+        });
+        Assert.Equal(HttpStatusCode.OK, checkout.StatusCode);
+        var orderId = (await checkout.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("orderId").GetInt32();
+
+        var analyticsBeforeCancellation = await administrator.GetFromJsonAsync<JsonElement>("/user-actions/analytics");
+        var saleBeforeCancellation = analyticsBeforeCancellation.GetProperty("vendasPorProduto").EnumerateArray()
+            .Single(item => item.GetProperty("produto").GetString() == productName);
+        Assert.Equal(expectedQuantity, saleBeforeCancellation.GetProperty("quantidade").GetInt32());
+        Assert.Equal(expectedRevenue, saleBeforeCancellation.GetProperty("receita").GetDecimal());
+
+        using var cancellation = await SendJson(visitor, HttpMethod.Delete, $"/user-actions/purchases/{orderId}", new { });
+        Assert.Equal(HttpStatusCode.OK, cancellation.StatusCode);
+
+        var analyticsAfterCancellation = await administrator.GetFromJsonAsync<JsonElement>("/user-actions/analytics");
+        Assert.DoesNotContain(analyticsAfterCancellation.GetProperty("vendasPorProduto").EnumerateArray(),
+            item => item.GetProperty("produto").GetString() == productName);
+
+        var history = await visitor.GetFromJsonAsync<JsonElement>("/user-actions/purchases");
+        var cancelledItem = history.EnumerateArray().Single(item => item.GetProperty("orderId").GetInt32() == orderId);
+        Assert.Equal("Cancelada", cancelledItem.GetProperty("status").GetString());
+        Assert.Equal(expectedQuantity, cancelledItem.GetProperty("quantity").GetInt32());
+        Assert.Equal(expectedRevenue, cancelledItem.GetProperty("totalPrice").GetDecimal());
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("codigo-incorreto")]
