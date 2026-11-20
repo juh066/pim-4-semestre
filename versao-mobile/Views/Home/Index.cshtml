@@ -1,0 +1,132 @@
+@model AuroraGaleria.Models.HomeViewModel
+@using System.Globalization
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Galeria Aurora";
+    var ptBr = CultureInfo.GetCultureInfo("pt-BR");
+    var sessionsJson = JsonSerializer.Serialize(Model.Sessoes, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+}
+
+<section class="hero">
+    <div class="hero-content">
+        <h1>GALERIA AURORA</h1>
+        <p>Arte contemporânea e experiências imersivas.</p>
+        <a href="#exposicoes" class="btn-main">Explorar</a>
+    </div>
+</section>
+
+<section id="exposicoes" class="section">
+    <h2>Exposições — Arte Contemporânea</h2>
+    <div class="cards">
+        @foreach (var expo in Model.Exposicoes)
+        {
+            var period = expo.Inicio.Year == expo.Fim.Year
+                ? $"{expo.Inicio.ToString("d 'de' MMMM", ptBr)} a {expo.Fim.ToString("d 'de' MMMM 'de' yyyy", ptBr)}"
+                : $"{expo.Inicio.ToString("d 'de' MMMM 'de' yyyy", ptBr)} a {expo.Fim.ToString("d 'de' MMMM 'de' yyyy", ptBr)}";
+            <article class="card">
+                <img src="@expo.ImagemUrl" alt="Obra representativa da exposição @expo.Titulo">
+                <div class="card-content">
+                    <h3>@expo.Titulo</h3>
+                    <p>@expo.Descricao</p>
+                    <span>@period</span>
+                </div>
+            </article>
+        }
+    </div>
+</section>
+
+<section id="comprar-ingressos" class="tickets">
+    <div class="ticket-box">
+        <h2>Reservar ingressos</h2>
+        <form id="ticketForm">
+            <div class="session-picker" data-session-picker="ticket">
+                <p class="gallery-time-zone">Horário de São Paulo</p>
+                <div class="session-picker-fields">
+                    <div class="session-picker-field">
+                        <label for="ticketExposure">Exposição</label>
+                        <select id="ticketExposure" data-session-exposure required>
+                            <option value="">Selecione uma exposição</option>
+                            @foreach (var exposure in Model.Exposicoes)
+                            {
+                                <option value="@exposure.Id">@exposure.Titulo</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="session-picker-field">
+                        <label for="ticketDate">Data</label>
+                        <select id="ticketDate" data-session-date required disabled>
+                            <option value="">Selecione uma data</option>
+                        </select>
+                    </div>
+                    <fieldset class="session-time-field" data-session-time-field hidden disabled>
+                        <legend>Horário</legend>
+                        <div class="session-time-options" data-session-times></div>
+                    </fieldset>
+                </div>
+                <input id="ticketSession" data-session-id type="hidden" value="">
+                <p class="session-unavailable" data-session-unavailable role="status" hidden>Não há sessões disponíveis para esta exposição.</p>
+                <p class="session-summary" data-session-summary aria-live="polite" hidden></p>
+            </div>
+            <label for="ticketQuantity">Quantidade</label>
+            <input id="ticketQuantity" type="number" min="1" max="20" value="1" required>
+            <button type="submit" data-session-submit disabled>Reservar</button>
+        </form>
+    </div>
+</section>
+
+<section id="agendar-visita" class="agenda">
+    <div class="agenda-box">
+        <h2>Agendar visita</h2>
+        <form id="agendaForm">
+            <div class="session-picker" data-session-picker="agenda">
+                <p class="gallery-time-zone">Horário de São Paulo</p>
+                <div class="session-picker-fields">
+                    <div class="session-picker-field">
+                        <label for="agendaExposure">Exposição</label>
+                        <select id="agendaExposure" data-session-exposure required>
+                            <option value="">Selecione uma exposição</option>
+                            @foreach (var exposure in Model.Exposicoes)
+                            {
+                                <option value="@exposure.Id">@exposure.Titulo</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="session-picker-field">
+                        <label for="agendaDate">Data</label>
+                        <select id="agendaDate" data-session-date required disabled>
+                            <option value="">Selecione uma data</option>
+                        </select>
+                    </div>
+                    <fieldset class="session-time-field" data-session-time-field hidden disabled>
+                        <legend>Horário</legend>
+                        <div class="session-time-options" data-session-times></div>
+                    </fieldset>
+                </div>
+                <input id="agendaSession" data-session-id type="hidden" value="">
+                <p class="session-unavailable" data-session-unavailable role="status" hidden>Não há sessões disponíveis para esta exposição.</p>
+                <p class="session-summary" data-session-summary aria-live="polite" hidden></p>
+            </div>
+            <button type="submit" data-session-submit disabled>Agendar</button>
+        </form>
+    </div>
+</section>
+
+<script id="sessionCatalog" type="application/json">@Html.Raw(sessionsJson)</script>
+
+<section id="lojinha" class="shop">
+    <h2>Lojinha</h2>
+    <div class="shop-grid">
+        @foreach (var product in Model.Produtos)
+        {
+            <article class="product" data-product-id="@product.Id">
+                <div class="product-image-frame">
+                    <img src="@product.ImagemUrl" alt="@product.Nome">
+                </div>
+                <h3>@product.Nome</h3>
+                <p>@product.Preco.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"))</p>
+                <button type="button">Adicionar ao carrinho</button>
+            </article>
+        }
+    </div>
+</section>
+<footer><p>Galeria Aurora © 2026 — Arte contemporânea para todos. <a href="/privacidade">Privacidade</a></p></footer>

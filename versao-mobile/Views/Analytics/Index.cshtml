@@ -1,0 +1,116 @@
+@{
+    ViewData["Title"] = "Análise de Dados";
+}
+
+<section class="analytics-page">
+    <h1>Análise de Dados</h1>
+
+    <div class="analytics-grid">
+        <article class="analytics-card">
+            <h2>Produtos Mais Vendidos</h2>
+            <p class="analytics-loading">Carregando dados...</p>
+            <p class="analytics-empty" hidden>Nenhum dado disponível ainda.</p>
+            <div class="analytics-chart-wrap" hidden>
+                <canvas id="productsChart"></canvas>
+            </div>
+        </article>
+
+        <article class="analytics-card">
+            <h2>Ingressos por Exposição</h2>
+            <p class="analytics-loading">Carregando dados...</p>
+            <p class="analytics-empty" hidden>Nenhum dado disponível ainda.</p>
+            <div class="analytics-chart-wrap" hidden>
+                <canvas id="ticketsChart"></canvas>
+            </div>
+        </article>
+
+    </div>
+</section>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const gold = '#C9A84C';
+            const dark = '#1C1C1E';
+            const muted = ['#8A7346', '#5E5E63', '#D7F0F0', '#EFE3E1'];
+
+            function prepareCard(canvasId, hasData) {
+                const canvas = document.getElementById(canvasId);
+                const card = canvas.closest('.analytics-card');
+                card.querySelector('.analytics-loading').hidden = true;
+                card.querySelector('.analytics-empty').hidden = hasData;
+                card.querySelector('.analytics-chart-wrap').hidden = !hasData;
+                return canvas;
+            }
+
+            function showEmpty(canvasId) {
+                prepareCard(canvasId, false);
+            }
+
+            function renderProducts(items) {
+                if (!items.length) {
+                    showEmpty('productsChart');
+                    return;
+                }
+
+                const canvas = prepareCard('productsChart', true);
+                new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: items.map(item => item.produto),
+                        datasets: [{
+                            label: 'Quantidade vendida',
+                            data: items.map(item => item.quantidade),
+                            backgroundColor: gold,
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                    }
+                });
+            }
+
+            function renderTickets(items) {
+                if (!items.length) {
+                    showEmpty('ticketsChart');
+                    return;
+                }
+
+                const canvas = prepareCard('ticketsChart', true);
+                new Chart(canvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: items.map(item => `${item.exposicao} (${item.quantidade})`),
+                        datasets: [{
+                            data: items.map(item => item.quantidade),
+                            backgroundColor: [gold, dark, ...muted]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } }
+                    }
+                });
+            }
+
+            try {
+                const response = await fetch('/user-actions/analytics', { credentials: 'same-origin' });
+                if (!response.ok) {
+                    throw new Error('Erro ao carregar dados.');
+                }
+
+                const data = await response.json();
+                renderProducts(data.vendasPorProduto || []);
+                renderTickets(data.ingressosPorExposicao || []);
+            } catch {
+                ['productsChart', 'ticketsChart'].forEach(showEmpty);
+            }
+        });
+    </script>
+}

@@ -1,0 +1,30 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace AuroraGaleria.Models
+{
+    public class RegisterRequest
+    {
+        [Required]
+        [MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        [MinLength(6, ErrorMessage = "A senha deve ter pelo menos 6 caracteres.")]
+        public string Password { get; set; } = string.Empty;
+
+        public bool RegisterAsAdministrator { get; set; }
+
+        public string? AdminAccessCode { get; set; }
+    }
+
+    public class LoginRequest
+    {
+        [Required]
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        public string Password { get; set; } = string.Empty;
+    }
+}

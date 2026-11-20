@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo - Sistema de Notificações</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .demo-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+
+        .btn-error:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(245, 158, 11, 0.4);
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        }
+
+        .btn-info:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(59, 130, 246, 0.4);
+        }
+
+        .info-box {
+            background: #f0f4ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 30px;
+            font-size: 13px;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .info-box strong {
+            color: #333;
+        }
+
+        /* Notification Styles */
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
+
+        .notification-banner {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.4s ease-out;
+            min-height: 60px;
+            font-size: 14px;
+            font-weight: 500;
+            color: white;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(420px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(420px);
+                opacity: 0;
+            }
+        }
+
+        .notification-banner.hide {
+            animation: slideOut 0.4s ease-out forwards;
+        }
+
+        .notification-banner.success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-left: 5px solid #047857;
+        }
+
+        .notification-banner.success::before {
+            content: "✓";
+            font-size: 24px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .notification-banner.error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            border-left: 5px solid #b91c1c;
+        }
+
+        .notification-banner.error::before {
+            content: "×";
+            font-size: 24px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .notification-banner.warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            border-left: 5px solid #b45309;
+        }
+
+        .notification-banner.warning::before {
+            content: "!";
+            font-size: 24px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .notification-banner.info {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            border-left: 5px solid #1e40af;
+        }
+
+        .notification-banner.info::before {
+            content: "ℹ";
+            font-size: 24px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 20px;
+            flex-shrink: 0;
+            padding: 0;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .notification-close:hover {
+            opacity: 1;
+        }
+
+        @media(max-width: 600px) {
+            .notification-container {
+                left: 10px;
+                right: 10px;
+                max-width: none;
+            }
+
+            .button-group {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="notificationContainer" class="notification-container"></div>
+
+    <div class="demo-container">
+        <h1>🎨 Sistema de Notificações</h1>
+        <p class="subtitle">AuroraGaleria - Clique nos botões abaixo para testar</p>
+
+        <div class="button-group">
+            <button class="btn-success" onclick="showSuccess()">
+                ✓ Sucesso
+            </button>
+            <button class="btn-error" onclick="showError()">
+                × Erro
+            </button>
+            <button class="btn-warning" onclick="showWarning()">
+                ! Aviso
+            </button>
+            <button class="btn-info" onclick="showInfo()">
+                ℹ Informação
+            </button>
+        </div>
+
+        <div class="button-group">
+            <button class="btn-success" onclick="showCadastro()">
+                Testar Cadastro
+            </button>
+            <button class="btn-success" onclick="showLogin()">
+                Testar Login
+            </button>
+            <button class="btn-success" onclick="showIngresso()">
+                Testar Ingresso
+            </button>
+            <button class="btn-success" onclick="showAgenda()">
+                Testar Agenda
+            </button>
+        </div>
+
+        <div class="info-box">
+            <strong>💡 Sobre o Sistema:</strong><br>
+            Este é um demo do sistema de notificações implementado no AuroraGaleria.
+            <br><br>
+            ✅ Aparecem no canto superior direito<br>
+            ✅ Desaparecem automaticamente (3-5 segundos)<br>
+            ✅ Podem ser fechadas manualmente com X<br>
+            ✅ 100% responsivo<br>
+            ✅ Sem dependências externas
+        </div>
+    </div>
+
+    <script>
+        class NotificationManager {
+            constructor() {
+                this.container = document.getElementById('notificationContainer');
+            }
+
+            show(message, type = 'info', duration = 4000) {
+                const notification = document.createElement('div');
+                notification.className = `notification-banner ${type}`;
+                
+                const content = document.createElement('div');
+                content.className = 'notification-content';
+                content.textContent = message;
+                
+                const closeBtn = document.createElement('button');
+                closeBtn.className = 'notification-close';
+                closeBtn.innerHTML = '×';
+                closeBtn.onclick = () => this.remove(notification);
+                
+                notification.appendChild(content);
+                notification.appendChild(closeBtn);
+                
+                this.container.appendChild(notification);
+                
+                if (duration > 0) {
+                    setTimeout(() => this.remove(notification), duration);
+                }
+                
+                return notification;
+            }
+
+            remove(notification) {
+                notification.classList.add('hide');
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
+                }, 400);
+            }
+
+            success(message, duration = 4000) {
+                return this.show(message, 'success', duration);
+            }
+
+            error(message, duration = 5000) {
+                return this.show(message, 'error', duration);
+            }
+
+            warning(message, duration = 4000) {
+                return this.show(message, 'warning', duration);
+            }
+
+            info(message, duration = 3000) {
+                return this.show(message, 'info', duration);
+            }
+        }
+
+        const notifications = new NotificationManager();
+
+        function showSuccess() {
+            notifications.success('✓ Operação realizada com sucesso!');
+        }
+
+        function showError() {
+            notifications.error('× Ocorreu um erro ao processar sua solicitação!');
+        }
+
+        function showWarning() {
+            notifications.warning('! Verifique seus dados antes de continuar');
+        }
+
+        function showInfo() {
+            notifications.info('ℹ Processando sua solicitação...');
+        }
+
+        function showCadastro() {
+            notifications.success('✓ Cadastro concluído com sucesso!');
+        }
+
+        function showLogin() {
+            notifications.success('✓ Login concluído com sucesso!');
+        }
+
+        function showIngresso() {
+            notifications.success('✓ Ingresso comprado com sucesso!');
+        }
+
+        function showAgenda() {
+            notifications.success('✓ Visita agendada com sucesso!');
+        }
+    </script>
+</body>
+</html>

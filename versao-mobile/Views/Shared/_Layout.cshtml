@@ -1,0 +1,245 @@
+﻿@using AuroraGaleria.Configuration
+@using Microsoft.Extensions.Options
+@inject IOptions<AcademicDemoOptions> AcademicDemoOptions
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - AuroraGaleria</title>
+    <script type="importmap"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/mobile.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/AuroraGaleria.styles.css" asp-append-version="true" />
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+            <div class="container-fluid">
+                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">AuroraGaleria</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                    <ul class="navbar-nav flex-grow-1">
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                        </li>
+                    </ul>
+                    <div class="navbar-actions" aria-label="Acessos rápidos">
+                        <a class="navbar-icon-button home-section-link" asp-area="" asp-controller="Home" asp-action="Index" asp-fragment="comprar-ingressos" aria-label="Comprar Ingressos" title="Comprar Ingressos">
+                            <svg aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
+                                <path d="M13 5v2" />
+                                <path d="M13 17v2" />
+                                <path d="M13 11v2" />
+                            </svg>
+                        </a>
+                        <a class="navbar-icon-button home-section-link" asp-area="" asp-controller="Home" asp-action="Index" asp-fragment="agendar-visita" aria-label="Agendar Visita" title="Agendar Visita">
+                            <svg aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M8 2v4" />
+                                <path d="M16 2v4" />
+                                <rect width="18" height="18" x="3" y="4" rx="2" />
+                                <path d="M3 10h18" />
+                                <path d="M8 14h.01" />
+                                <path d="M12 14h.01" />
+                                <path d="M16 14h.01" />
+                                <path d="M8 18h.01" />
+                                <path d="M12 18h.01" />
+                            </svg>
+                        </a>
+                        <a class="navbar-icon-button home-section-link" asp-area="" asp-controller="Home" asp-action="Index" asp-fragment="lojinha" aria-label="Lojinha" title="Lojinha">
+                            <svg aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+                                <path d="M3 6h18" />
+                                <path d="M16 10a4 4 0 0 1-8 0" />
+                            </svg>
+                        </a>
+                        <a id="analyticsButton" class="navbar-icon-button" asp-area="" asp-controller="Analytics" asp-action="Index" aria-label="Análise de Dados" title="Análise de Dados" hidden>
+                            <svg aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M3 3v18h18" />
+                                <rect x="7" y="12" width="3" height="5" rx="1" />
+                                <rect x="12" y="8" width="3" height="9" rx="1" />
+                                <rect x="17" y="5" width="3" height="12" rx="1" />
+                            </svg>
+                        </a>
+                        <a id="adminButton" class="navbar-icon-button" asp-controller="Admin" asp-action="Index" aria-label="Administrar cadastros" title="Administração" hidden>Admin</a>
+                        <button id="cartButton" class="navbar-icon-button cart-navbar-button" type="button" aria-label="Abrir carrinho" title="Carrinho" hidden>
+                            <svg aria-hidden="true" viewBox="0 0 24 24">
+                                <circle cx="8" cy="21" r="1" />
+                                <circle cx="19" cy="21" r="1" />
+                                <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
+                            </svg>
+                            <span id="cartCount" class="cart-count" hidden>0</span>
+                        </button>
+                        <button id="userProfileIcon" class="navbar-user-button" type="button" data-bs-toggle="modal" data-bs-target="#authModal" aria-label="Abrir login e cadastro" title="Login e Cadastro">
+                            <svg id="userIconSvg" aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M19 21a7 7 0 0 0-14 0" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg>
+                            <span id="userInitials" class="user-initials" aria-hidden="true"></span>
+                            <span id="userName" class="user-name-label"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="container">
+        <main role="main" class="pb-3">
+            <!-- Notification Container -->
+            <div id="notificationContainer" class="notification-container"></div>
+            @RenderBody()
+        </main>
+    </div>
+
+    <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content auth-modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="authModalLabel">Área do usuário</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="auth-modal-grid">
+                        <div class="auth-panel">
+                            <h3>Login</h3>
+                            <form id="loginForm">
+                                <label for="loginEmail">E-mail</label>
+                                <input id="loginEmail" type="email" autocomplete="email" required>
+                                <label for="loginPassword">Senha</label>
+                                <input id="loginPassword" type="password" autocomplete="current-password" required>
+                                <button type="submit">Entrar</button>
+                            </form>
+                        </div>
+
+                        <div class="auth-panel">
+                            <h3>Cadastro</h3>
+                            <form id="registerForm">
+                                <label for="registerName">Nome</label>
+                                <input id="registerName" type="text" autocomplete="name" required>
+                                <label for="registerEmail">E-mail</label>
+                                <input id="registerEmail" type="email" autocomplete="email" maxlength="256" aria-describedby="registerEmailMessage" required>
+                                <small id="registerEmailMessage" class="form-field-help">Informe um e-mail válido, como nome@dominio.com.</small>
+                                <label for="registerPassword">Senha</label>
+                                <input id="registerPassword" type="password" autocomplete="new-password" minlength="6" required>
+                                @if (AcademicDemoOptions.Value.EnableAdminRegistration)
+                                {
+                                    <div class="admin-registration-option">
+                                        <label class="admin-registration-toggle" for="registerAsAdministrator">
+                                            <input id="registerAsAdministrator" type="checkbox">
+                                            <span>Cadastrar como administrador</span>
+                                        </label>
+                                        <div id="adminRegistrationFields" class="admin-registration-fields" hidden>
+                                            <label for="adminAccessCode">Código de acesso administrativo</label>
+                                            <div class="admin-access-code-row">
+                                                <input id="adminAccessCode" type="password" autocomplete="off" inputmode="numeric" aria-describedby="adminAccessCodeHelp">
+                                                <button id="toggleAdminAccessCode" class="secondary-inline-button" type="button" aria-controls="adminAccessCode" aria-pressed="false">Mostrar código</button>
+                                            </div>
+                                            <small id="adminAccessCodeHelp" class="form-field-help">Recurso para demonstração acadêmica. Utilize o código 123 para testar o perfil de administrador.</small>
+                                        </div>
+                                    </div>
+                                }
+                                <button type="submit">Cadastrar</button>
+                                <small class="form-field-help">Ao se cadastrar, consulte nossa <a href="/privacidade">página de Privacidade</a>.</small>
+                            </form>
+                        </div>
+                    </div>
+                    <div id="loggedInActions" class="logged-in-actions" hidden>
+                        <div class="account-summary">
+                            <span>Você está conectado.</span>
+                            <div class="account-actions">
+                                <button id="requestDeletionBtn" class="secondary-inline-button" type="button">Solicitar exclusão da conta</button>
+                                <button id="logoutBtn" type="button">Sair</button>
+                            </div>
+                        </div>
+                        <div class="user-record-tabs" role="tablist" aria-label="Registros do usuário">
+                            <button id="userTicketsTab" class="user-record-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="userTicketsPanel" data-record-tab="tickets">Meus Ingressos</button>
+                            <button id="userAppointmentsTab" class="user-record-tab" type="button" role="tab" aria-selected="false" aria-controls="userAppointmentsPanel" data-record-tab="appointments">Meus Agendamentos</button>
+                            <button id="userPurchasesTab" class="user-record-tab" type="button" role="tab" aria-selected="false" aria-controls="userPurchasesPanel" data-record-tab="purchases">Minhas Compras</button>
+                        </div>
+                        <div class="user-records-grid">
+                            <section id="userTicketsPanel" class="user-records-panel" role="tabpanel" aria-labelledby="userTicketsTab" data-record-panel="tickets">
+                                <h3 id="userTicketsTitle">Meus Ingressos</h3>
+                                <div id="userTicketsList" class="user-records-list"></div>
+                                <p id="userTicketsEmpty" class="user-records-empty">Nenhum registro encontrado.</p>
+                            </section>
+                            <section id="userAppointmentsPanel" class="user-records-panel" role="tabpanel" aria-labelledby="userAppointmentsTab" data-record-panel="appointments" hidden>
+                                <h3 id="userAppointmentsTitle">Meus Agendamentos</h3>
+                                <div id="userAppointmentsList" class="user-records-list"></div>
+                                <p id="userAppointmentsEmpty" class="user-records-empty">Nenhum registro encontrado.</p>
+                            </section>
+                            <section id="userPurchasesPanel" class="user-records-panel user-purchases-panel" role="tabpanel" aria-labelledby="userPurchasesTab" data-record-panel="purchases" hidden>
+                                <h3 id="userPurchasesTitle">Minhas Compras</h3>
+                                <div id="userPurchasesList" class="user-records-list"></div>
+                                <p id="userPurchasesEmpty" class="user-records-empty">Nenhum registro encontrado.</p>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content auth-modal-content payment-modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="paymentModalLabel">Confirmar compra</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="paymentForm" class="payment-form">
+                        <p>Revise os itens do carrinho e confirme para registrar a compra.</p>
+                        <div class="payment-actions">
+                            <button id="paymentConfirmButton" type="submit">Confirmar compra</button>
+                            <button id="paymentCancelButton" class="payment-cancel-button" type="button" data-bs-dismiss="modal">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="cartBackdrop" class="cart-backdrop" hidden></div>
+    <aside id="cartDrawer" class="cart-drawer" aria-labelledby="cartDrawerTitle" aria-hidden="true">
+        <div class="cart-drawer-header">
+            <h2 id="cartDrawerTitle">Carrinho</h2>
+            <button id="cartCloseButton" class="cart-close-button" type="button" aria-label="Fechar carrinho">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                </svg>
+            </button>
+        </div>
+        <div id="cartItems" class="cart-items"></div>
+        <p id="cartEmpty" class="cart-empty">Seu carrinho está vazio.</p>
+        <div class="cart-drawer-footer">
+            <div class="cart-total-row">
+                <span>Total</span>
+                <strong id="cartTotal">R$ 0,00</strong>
+            </div>
+            <button id="cartCheckoutButton" type="button" disabled>Finalizar compra</button>
+        </div>
+    </aside>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+    <!-- VLibras -->
+    <div vw class="enabled">
+        <div vw-access-button class="active"></div>
+        <div vw-plugin-wrapper>
+            <div class="vw-plugin-top-wrapper"></div>
+        </div>
+    </div>
+    <script src="https://vlibras.gov.br/app/vlibras-plugin.js" onerror="console.warn('VLibras indisponível; as demais funções continuam ativas.')"></script>
+    <script>
+        if (window.VLibras?.Widget) {
+            try { new window.VLibras.Widget('https://vlibras.gov.br/app'); }
+            catch (error) { console.warn('Não foi possível iniciar o VLibras.', error); }
+        }
+    </script>
+
+</body>
+</html>
