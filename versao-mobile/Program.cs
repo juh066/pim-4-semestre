@@ -86,7 +86,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 var app = builder.Build();
 
 var importingFromSqlite = args.Contains("--migrate-sqlite-to-sqlserver", StringComparer.OrdinalIgnoreCase);
-await DatabaseInitializer.InitializeAsync(app.Services, app.Logger, seedCatalog: !importingFromSqlite);
+await DatabaseInitializer.InitializeAsync(app.Services, app.Logger, seedCatalog: false);
 
 if (importingFromSqlite || args.Contains("--verify-sqlserver-import", StringComparer.OrdinalIgnoreCase))
 {

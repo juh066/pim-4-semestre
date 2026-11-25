@@ -27,6 +27,9 @@
     <Compile Remove="AuroraGaleria.Tests/**/*.cs" />
     <Content Remove="AuroraGaleria.Tests/**" />
     <None Remove="AuroraGaleria.Tests/**" />
+    <Compile Remove="versao-mobile/**/*.cs" />
+    <Content Remove="versao-mobile/**" />
+    <None Remove="versao-mobile/**" />
   </ItemGroup>
 
 </Project>
